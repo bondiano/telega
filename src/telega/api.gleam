@@ -1,73 +1,128 @@
+//// > It's internal module for working with Telegram API, **not** for public use.
+
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
-import gleam/http.{Post}
+import gleam/http.{Get, Post}
+import gleam/option.{type Option, None, Some}
 import gleam/json
 import gleam/httpc
 import gleam/result
 import gleam/dynamic
-import logging
 
-const base_url = "https://api.telegram.org/bot"
+type TelegramApiRequest {
+  TelegramApiPostRequest(
+    url: String,
+    body: String,
+    query: Option(List(#(String, String))),
+  )
+  TelegramApiGetRequest(url: String, query: Option(List(#(String, String))))
+}
 
-fn fetch(request: Request(String)) -> Result(Response(String), String) {
-  request
-  |> httpc.send
+fn new_post_request(
+  token token: String,
+  telegram_url telegram_url: String,
+  path path: String,
+  body body: String,
+  query query: Option(List(#(String, String))),
+) {
+  let url = telegram_url <> token <> "/" <> path
+
+  TelegramApiPostRequest(url: url, body: body, query: query)
+}
+
+fn new_get_request(
+  token token: String,
+  telegram_url telegram_url: String,
+  path path: String,
+  query query: Option(List(#(String, String))),
+) {
+  let url = telegram_url <> token <> "/" <> path
+
+  TelegramApiGetRequest(url: url, query: query)
+}
+
+fn set_query(
+  api_request: Request(String),
+  query: Option(List(#(String, String))),
+) -> Request(String) {
+  case query {
+    None -> api_request
+    Some(query) -> {
+      request.set_query(api_request, query)
+    }
+  }
+}
+
+fn api_to_request(
+  api_request: TelegramApiRequest,
+) -> Result(Request(String), String) {
+  case api_request {
+    TelegramApiGetRequest(url: url, query: query) -> {
+      request.to(url)
+      |> result.map(request.set_method(_, Get))
+      |> result.map(set_query(_, query))
+      |> result.map(request.set_header(_, "Content-Type", "application/json"))
+    }
+    TelegramApiPostRequest(url: url, query: query, body: body) -> {
+      request.to(url)
+      |> result.map(request.set_body(_, body))
+      |> result.map(request.set_method(_, Post))
+      |> result.map(request.set_header(_, "Content-Type", "application/json"))
+      |> result.map(set_query(_, query))
+    }
+  }
+  |> result.map_error(fn(_) { "Failed to convert API request to HTTP request" })
+}
+
+fn fetch(api_request: Result(Request(String), String)) {
+  use api_request <- result.try(api_request)
+
+  httpc.send(api_request)
   |> result.map_error(fn(error) {
     dynamic.string(error)
     |> result.unwrap("Failed to send request")
   })
 }
 
-fn build_post_request(url: String, body: String) -> Result(Request(String), Nil) {
-  request.to(url)
-  |> result.map(request.set_body(_, body))
-  |> result.map(request.set_method(_, Post))
-  |> result.map(request.set_header(_, "Content-Type", "application/json"))
-}
-
-fn build_webhook_request(
-  token: String,
-  webhook_url: String,
-) -> Result(Request(String), String) {
-  let webhook_url = base_url <> token <> "/setWebhook?url=" <> webhook_url
-
-  logging.log(logging.Debug, "Webhook URL: " <> webhook_url)
-
-  request.to(webhook_url)
-  |> result.map_error(fn(_) { "Failed to build webhook request" })
-}
-
 pub fn set_webhook(
-  token: String,
-  webhook_url: String,
+  token token: String,
+  webhook_url webhook_url: String,
+  telegram_url telegram_url: String,
+  secret_token secret_token: Option(String),
 ) -> Result(Response(String), String) {
-  build_webhook_request(token, webhook_url)
-  |> result.then(fetch)
-}
+  let query = [#("url", webhook_url)]
+  let query = case secret_token {
+    None -> query
+    Some(secret_token) -> [#("secret_token", secret_token), ..query]
+  }
 
-fn build_send_text_request(
-  token: String,
-  chat_id: Int,
-  message: String,
-) -> Result(Request(String), String) {
-  let message =
-    json.object([
-      #("chat_id", json.int(chat_id)),
-      #("text", json.string(message)),
-    ])
-    |> json.to_string
-
-  let send_message_url = base_url <> token <> "/sendMessage"
-
-  build_post_request(send_message_url, message)
-  |> result.map_error(fn(_) { "Failed to build sendMessage request" })
+  new_get_request(
+    token: token,
+    telegram_url: telegram_url,
+    path: "setWebhook",
+    query: Some(query),
+  )
+  |> api_to_request
+  |> fetch
 }
 
 pub fn send_text(
-  token: String,
-  chat_id: Int,
-  message: String,
+  chat_id chat_id: Int,
+  text text: String,
+  token token: String,
+  telegram_url telegram_url: String,
 ) -> Result(Response(String), String) {
-  build_send_text_request(token, chat_id, message)
-  |> result.then(fetch)
+  new_post_request(
+    token: token,
+    telegram_url: telegram_url,
+    path: "sendMessage",
+    body: json.object([
+        #("chat_id", json.int(chat_id)),
+        #("text", json.string(text)),
+      ])
+      |> json.to_string,
+    query: None,
+  )
+  |> api_to_request
+  |> fetch
 }

@@ -1,11 +1,13 @@
 import gleam/erlang/process
 import gleam/result.{try}
+import gleam/option.{Some}
 import gleam/erlang/os
 import gleam/bool
 import dotenv_gleam
 import mist
 import wisp.{type Request, type Response}
-import telega.{type Bot, type Message}
+import telega.{type Bot, type Context, HandleAll}
+import telega/telega_wisp
 
 fn middleware(
   req: Request,
@@ -20,8 +22,8 @@ fn middleware(
 
 fn handle_request(bot: Bot, req: Request) -> Response {
   use req <- middleware(req)
-  use <- bool.lazy_guard(telega.is_bot_request(bot, req), fn() {
-    telega.bot_handler(bot, req)
+  use <- bool.lazy_guard(telega_wisp.is_bot_request(bot, req), fn() {
+    telega_wisp.bot_handler(bot, req)
   })
 
   case wisp.path_segments(req) {
@@ -30,17 +32,23 @@ fn handle_request(bot: Bot, req: Request) -> Response {
   }
 }
 
-fn echo_handler(bot: Bot, message: Message) -> Result(Nil, Nil) {
-  telega.reply(bot, message, message.text)
+fn echo_handler(ctx: Context) -> Result(Nil, Nil) {
+  telega.reply(ctx, ctx.message.text)
 }
 
 fn build_bot() -> Result(Bot, Nil) {
   use bot_token <- try(os.get_env("BOT_TOKEN"))
-  use secret_path <- try(os.get_env("SECRET_PATH"))
+  use webhook_path <- try(os.get_env("WEBHOOK_PATH"))
   use server_url <- try(os.get_env("SERVER_URL"))
+  use secret_token <- try(os.get_env("BOT_SECRET_TOKEN"))
 
-  telega.new(token: bot_token, url: server_url, secret: secret_path)
-  |> telega.add_handler(echo_handler)
+  telega.new(
+    token: bot_token,
+    url: server_url,
+    webhook_path: webhook_path,
+    secret_token: Some(secret_token),
+  )
+  |> telega.add_handler(HandleAll(echo_handler))
   |> Ok
 }
 
@@ -58,10 +66,10 @@ pub fn main() {
     |> result.nil_error,
   )
 
-  use _ <- try(
-    telega.set_webhook(bot)
-    |> result.nil_error,
-  )
+  case telega.set_webhook(bot) {
+    Ok(_) -> wisp.log_info("Webhook set successfully")
+    Error(e) -> wisp.log_error("Failed to set webhook:" <> e)
+  }
 
   process.sleep_forever()
 
