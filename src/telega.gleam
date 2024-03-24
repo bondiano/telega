@@ -3,7 +3,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/list
 import gleam/string
 import telega/message.{type Message, CommandMessage, TextMessage}
-import telega/api
+import telega/api.{type BotCommands, type BotCommandsOptions}
 import telega/log
 
 const telegram_url = "https://api.telegram.org/bot"
@@ -55,7 +55,7 @@ pub type Command {
 }
 
 pub type CommandContext {
-  CommandContext(message: Message, bot: Bot, command: Command)
+  CommandContext(ctx: Context, command: Command)
 }
 
 /// Creates a new Bot with the given options.
@@ -77,6 +77,19 @@ pub fn new(
   )
 }
 
+/// Check if a path is the webhook path for the bot.
+pub fn is_webhook_path(bot: Bot, path: String) -> Bool {
+  bot.config.webhook_path == path
+}
+
+/// Check if a token is the secret token for the bot.
+pub fn is_secret_token_valid(bot: Bot, token: String) -> Bool {
+  case bot.config.secret_token {
+    Some(secret) -> secret == token
+    None -> True
+  }
+}
+
 /// Set the webhook URL using [setWebhook](https://core.telegram.org/bots/api#setwebhook) API.
 pub fn set_webhook(bot: Bot) -> Result(Bool, String) {
   let webhook_url = bot.config.server_url <> "/" <> bot.config.webhook_path
@@ -93,21 +106,8 @@ pub fn set_webhook(bot: Bot) -> Result(Bool, String) {
   }
 }
 
-/// Check if a path is the webhook path for the bot.
-pub fn is_webhook_path(bot: Bot, path: String) -> Bool {
-  bot.config.webhook_path == path
-}
-
-/// Check if a token is the secret token for the bot.
-pub fn is_secret_token_valid(bot: Bot, token: String) -> Bool {
-  case bot.config.secret_token {
-    Some(secret) -> secret == token
-    None -> True
-  }
-}
-
 /// Use this method to send text messages.
-pub fn reply(ctx: Context, text: String) -> Result(Message, Nil) {
+pub fn reply(ctx ctx: Context, text text: String) -> Result(Message, Nil) {
   let chat_id = ctx.message.raw.chat.id
 
   api.send_message(
@@ -117,6 +117,22 @@ pub fn reply(ctx: Context, text: String) -> Result(Message, Nil) {
     text: text,
   )
   |> result.map(fn(_) { ctx.message })
+  |> result.nil_error
+}
+
+/// Use this method to change the list of the bot's commands. See [commands documentation](https://core.telegram.org/bots/features#commands) for more details about bot commands. Returns True on success.
+pub fn set_my_commands(
+  ctx ctx: Context,
+  commands commands: BotCommands,
+  options options: Option(BotCommandsOptions),
+) -> Result(Bool, Nil) {
+  api.set_my_commands(
+    token: ctx.bot.config.token,
+    telegram_url: ctx.bot.config.telegram_url,
+    commands: commands,
+    options: options,
+  )
+  |> result.map(fn(_) { True })
   |> result.nil_error
 }
 
@@ -160,8 +176,7 @@ fn do_handle_update(bot: Bot, message: Message, handlers: List(Handler)) -> Nil 
           case message_command.command == command {
             True ->
               handle(CommandContext(
-                bot: bot,
-                message: message,
+                ctx: Context(bot: bot, message: message),
                 command: message_command,
               ))
             False -> Ok(Nil)
@@ -172,8 +187,7 @@ fn do_handle_update(bot: Bot, message: Message, handlers: List(Handler)) -> Nil 
           case list.contains(commands, message_command.command) {
             True ->
               handle(CommandContext(
-                bot: bot,
-                message: message,
+                ctx: Context(bot: bot, message: message),
                 command: message_command,
               ))
             False -> Ok(Nil)
