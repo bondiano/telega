@@ -37,7 +37,7 @@ pub type Handler {
     commands: List(String),
   )
   /// Handle text messages.
-  HandleText(handler: fn(Context) -> Result(Nil, Nil))
+  HandleText(handler: fn(TextContext) -> Result(Nil, Nil))
 }
 
 /// Handlers context.
@@ -54,8 +54,13 @@ pub type Command {
   )
 }
 
+/// Command handlers context.
 pub type CommandContext {
   CommandContext(ctx: Context, command: Command)
+}
+
+pub type TextContext {
+  TextContext(ctx: Context, text: String)
 }
 
 /// Creates a new Bot with the given options.
@@ -107,7 +112,7 @@ pub fn set_webhook(bot: Bot) -> Result(Bool, String) {
 }
 
 /// Use this method to send text messages.
-pub fn reply(ctx ctx: Context, text text: String) -> Result(Message, Nil) {
+pub fn reply(ctx ctx: Context, text text: String) -> Result(Message, String) {
   let chat_id = ctx.message.raw.chat.id
 
   api.send_message(
@@ -117,7 +122,6 @@ pub fn reply(ctx ctx: Context, text text: String) -> Result(Message, Nil) {
     text: text,
   )
   |> result.map(fn(_) { ctx.message })
-  |> result.nil_error
 }
 
 /// Use this method to change the list of the bot's commands. See [commands documentation](https://core.telegram.org/bots/features#commands) for more details about bot commands. Returns True on success.
@@ -125,7 +129,7 @@ pub fn set_my_commands(
   ctx ctx: Context,
   commands commands: BotCommands,
   options options: Option(BotCommandsOptions),
-) -> Result(Bool, Nil) {
+) -> Result(Bool, String) {
   api.set_my_commands(
     token: ctx.bot.config.token,
     telegram_url: ctx.bot.config.telegram_url,
@@ -133,7 +137,6 @@ pub fn set_my_commands(
     options: options,
   )
   |> result.map(fn(_) { True })
-  |> result.nil_error
 }
 
 /// Add a handler to the bot.
@@ -163,13 +166,20 @@ fn extract_command(message: Message) -> Command {
   }
 }
 
+fn extract_text(message: Message) -> String {
+  option.unwrap(message.raw.text, "")
+}
+
 fn do_handle_update(bot: Bot, message: Message, handlers: List(Handler)) -> Nil {
   case handlers {
     [handler, ..rest] -> {
       let handle_result = case handler, message.kind {
         HandleAll(handle), _ -> handle(Context(bot: bot, message: message))
         HandleText(handle), TextMessage ->
-          handle(Context(bot: bot, message: message))
+          handle(TextContext(
+            ctx: Context(bot: bot, message: message),
+            text: extract_text(message),
+          ))
 
         HandleCommand(handle, command), CommandMessage -> {
           let message_command = extract_command(message)

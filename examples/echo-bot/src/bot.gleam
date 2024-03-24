@@ -6,7 +6,7 @@ import gleam/bool
 import dotenv_gleam
 import mist
 import wisp.{type Request, type Response}
-import telega.{type Bot, HandleAll}
+import telega.{type Bot, type Context, HandleAll}
 import telega/adapters/wisp as telega_wisp
 
 fn middleware(
@@ -32,6 +32,16 @@ fn handle_request(bot: Bot, req: Request) -> Response {
   }
 }
 
+fn echo_handler(ctx: Context) -> Result(Nil, Nil) {
+  case ctx.message.raw.text {
+    Some(text) ->
+      telega.reply(ctx, text)
+      |> result.map(fn(_) { Nil })
+      |> result.nil_error
+    None -> Error(Nil)
+  }
+}
+
 fn build_bot() -> Result(Bot, Nil) {
   use bot_token <- try(os.get_env("BOT_TOKEN"))
   use webhook_path <- try(os.get_env("WEBHOOK_PATH"))
@@ -44,15 +54,7 @@ fn build_bot() -> Result(Bot, Nil) {
     webhook_path: webhook_path,
     secret_token: Some(secret_token),
   )
-  |> telega.add_handler(
-    HandleAll(fn(ctx) {
-      case ctx.message.raw.text {
-        Some(text) -> telega.reply(ctx, text)
-        None -> Error(Nil)
-      }
-      |> result.map(fn(_) { Nil })
-    }),
-  )
+  |> telega.add_handler(HandleAll(echo_handler))
   |> Ok
 }
 
