@@ -84,6 +84,7 @@ fn fetch(api_request: Result(Request(String), String)) {
   })
 }
 
+/// **Official reference:** https://core.telegram.org/bots/api#setwebhook
 pub fn set_webhook(
   token token: String,
   webhook_url webhook_url: String,
@@ -106,7 +107,8 @@ pub fn set_webhook(
   |> fetch
 }
 
-pub fn send_text(
+/// **Official reference:** https://core.telegram.org/bots/api#sendmessage
+pub fn send_message(
   chat_id chat_id: Int,
   text text: String,
   token token: String,

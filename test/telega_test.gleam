@@ -1,7 +1,7 @@
 import gleeunit
 import gleeunit/should
 import telega
-import telega/telega_wisp
+import telega/adapters/wisp as telega_wisp
 import gleam/http.{Post}
 import gleam/option.{None}
 import wisp/testing

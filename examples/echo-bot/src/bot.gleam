@@ -1,13 +1,13 @@
 import gleam/erlang/process
 import gleam/result.{try}
-import gleam/option.{Some}
+import gleam/option.{None, Some}
 import gleam/erlang/os
 import gleam/bool
 import dotenv_gleam
 import mist
 import wisp.{type Request, type Response}
-import telega.{type Bot, type Context, HandleAll}
-import telega/telega_wisp
+import telega.{type Bot, HandleAll}
+import telega/adapters/wisp as telega_wisp
 
 fn middleware(
   req: Request,
@@ -32,10 +32,6 @@ fn handle_request(bot: Bot, req: Request) -> Response {
   }
 }
 
-fn echo_handler(ctx: Context) -> Result(Nil, Nil) {
-  telega.reply(ctx, ctx.message.text)
-}
-
 fn build_bot() -> Result(Bot, Nil) {
   use bot_token <- try(os.get_env("BOT_TOKEN"))
   use webhook_path <- try(os.get_env("WEBHOOK_PATH"))
@@ -48,7 +44,15 @@ fn build_bot() -> Result(Bot, Nil) {
     webhook_path: webhook_path,
     secret_token: Some(secret_token),
   )
-  |> telega.add_handler(HandleAll(echo_handler))
+  |> telega.add_handler(
+    HandleAll(fn(ctx) {
+      case ctx.message.raw.text {
+        Some(text) -> telega.reply(ctx, text)
+        None -> Error(Nil)
+      }
+      |> result.map(fn(_) { Nil })
+    }),
+  )
   |> Ok
 }
 
@@ -68,7 +72,7 @@ pub fn main() {
 
   case telega.set_webhook(bot) {
     Ok(_) -> wisp.log_info("Webhook set successfully")
-    Error(e) -> wisp.log_error("Failed to set webhook:" <> e)
+    Error(e) -> wisp.log_error("Failed to set webhook: " <> e)
   }
 
   process.sleep_forever()

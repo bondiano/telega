@@ -5,9 +5,13 @@ import wisp.{
 import gleam/http/response.{Response as HttpResponse}
 import gleam/result
 import gleam/http/request
-import telega.{type Bot}
+import gleam/string
 import gleam/bool
-import logging
+import gleam/dynamic
+import gleam/list
+import telega.{type Bot}
+import telega/log
+import telega/message
 
 const secret_header = "x-relegram-bot-api-secret-token"
 
@@ -19,15 +23,21 @@ fn is_secret_token_valid(bot: Bot, req: WispRequest) -> Bool {
   telega.is_secret_token_valid(bot, secret_header_value)
 }
 
+/// Format decode error to error message string.
+pub fn decode_to_string(error: dynamic.DecodeError) -> String {
+  let dynamic.DecodeError(expected, found, path) = error
+  let path_string = string.join(path, ".")
+  "Expected " <> expected <> ", found " <> found <> " at " <> path_string
+}
+
 /// Handle incoming requests from the Telegram API.
 /// Add this function as a handler to your wisp server.
 ///
 /// ```gleam
 /// import telega.{type Bot}
-/// import telega/telega_wisp
+/// import telega/adapters/wisp as telega_wisp
 ///
 /// fn handle_request(bot: Bot, req: Request) -> Response {
-///   use req <- middleware(req)
 ///   use <- bool.lazy_guard(telega_wisp.is_bot_request(bot, req), fn() {
 ///     telega_wisp.bot_handler(bot, req)
 ///   })
@@ -41,19 +51,23 @@ fn is_secret_token_valid(bot: Bot, req: WispRequest) -> Bool {
 pub fn bot_handler(bot: Bot, req: WispRequest) -> WispResponse {
   use json <- wisp.require_json(req)
 
-  case telega.decode_message(json) {
+  case message.decode(json) {
     Ok(message) -> {
       use <- bool.lazy_guard(is_secret_token_valid(bot, req), fn() {
         HttpResponse(401, [], WispEmptyBody)
       })
 
-      logging.log(logging.Info, "Received message: " <> message.text)
+      log.info("Received message " <> string.inspect(message))
       telega.handle_update(bot, message)
 
       wisp.ok()
     }
-    Error(_) -> {
-      logging.log(logging.Error, "Failed to decode message")
+    Error(errors) -> {
+      let error_message =
+        errors
+        |> list.map(decode_to_string)
+        |> string.join("\n")
+      log.error("Failed to decode message:\n" <> error_message)
 
       wisp.ok()
     }

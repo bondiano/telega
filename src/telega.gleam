@@ -1,26 +1,21 @@
 import gleam/result.{try}
-import gleam/dynamic.{type Dynamic}
 import gleam/option.{type Option, None, Some}
+import gleam/list
+import gleam/string
+import telega/message.{type Message, CommandMessage, TextMessage}
 import telega/api
-import logging
+import telega/log
 
 const telegram_url = "https://api.telegram.org/bot"
-
-type MessageUpdate {
-  MessageUpdate(message: Message)
-}
-
-pub type Chat {
-  Chat(id: Int)
-}
 
 pub opaque type Config {
   Config(
     token: String,
     server_url: String,
     webhook_path: String,
-    telegram_url: String,
+    /// An optional string to compare to X-Telegram-Bot-Api-Secret-Token
     secret_token: Option(String),
+    telegram_url: String,
   )
 }
 
@@ -29,19 +24,41 @@ pub type Bot {
 }
 
 pub type Handler {
+  /// Handle all messages.
   HandleAll(handler: fn(Context) -> Result(Nil, Nil))
+  /// Handle a specific command.
+  HandleCommand(
+    handler: fn(CommandContext) -> Result(Nil, Nil),
+    command: String,
+  )
+  /// Handle multiple commands.
+  HandleCommands(
+    handler: fn(CommandContext) -> Result(Nil, Nil),
+    commands: List(String),
+  )
+  /// Handle text messages.
+  HandleText(handler: fn(Context) -> Result(Nil, Nil))
 }
 
-/// Messages represent the data that the bot receives from the Telegram API.
-pub type Message {
-  TextMessage(text: String, chat: Chat)
-}
-
+/// Handlers context.
 pub type Context {
   Context(message: Message, bot: Bot)
 }
 
-/// Create a new bot instance.
+pub type Command {
+  Command(
+    text: String,
+    command: String,
+    /// The command arguments, if any.
+    payload: Option(String),
+  )
+}
+
+pub type CommandContext {
+  CommandContext(message: Message, bot: Bot, command: Command)
+}
+
+/// Creates a new Bot with the given options.
 pub fn new(
   token token: String,
   url server_url: String,
@@ -60,7 +77,7 @@ pub fn new(
   )
 }
 
-/// Set the webhook URL for the bot.
+/// Set the webhook URL using [setWebhook](https://core.telegram.org/bots/api#setwebhook) API.
 pub fn set_webhook(bot: Bot) -> Result(Bool, String) {
   let webhook_url = bot.config.server_url <> "/" <> bot.config.webhook_path
   use response <- try(api.set_webhook(
@@ -89,15 +106,17 @@ pub fn is_secret_token_valid(bot: Bot, token: String) -> Bool {
   }
 }
 
-/// Replies to user with a text message.
-pub fn reply(ctx: Context, text: String) -> Result(Nil, Nil) {
-  api.send_text(
+/// Use this method to send text messages.
+pub fn reply(ctx: Context, text: String) -> Result(Message, Nil) {
+  let chat_id = ctx.message.raw.chat.id
+
+  api.send_message(
     token: ctx.bot.config.token,
     telegram_url: ctx.bot.config.telegram_url,
-    chat_id: ctx.message.chat.id,
+    chat_id: chat_id,
     text: text,
   )
-  |> result.map(fn(_) { Nil })
+  |> result.map(fn(_) { ctx.message })
   |> result.nil_error
 }
 
@@ -111,41 +130,62 @@ pub fn handle_update(bot: Bot, message: Message) -> Nil {
   do_handle_update(bot, message, bot.handlers)
 }
 
-/// Decode a message from the Telegram API.
-pub fn decode_message(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
-  let decode = build_message_decoder()
-  use message_update <- try(decode(json))
-  Ok(message_update.message)
-}
-
-fn new_context(bot: Bot, message: Message) -> Context {
-  Context(message: message, bot: bot)
-}
-
-fn build_message_decoder() {
-  dynamic.decode1(
-    MessageUpdate,
-    dynamic.field(
-      "message",
-      dynamic.decode2(
-        TextMessage,
-        dynamic.field("text", dynamic.string),
-        dynamic.field(
-          "chat",
-          dynamic.decode1(Chat, dynamic.field("id", dynamic.int)),
-        ),
-      ),
-    ),
-  )
+fn extract_command(message: Message) -> Command {
+  case message.raw.text {
+    None -> Command(text: "", command: "", payload: None)
+    Some(text) -> {
+      case string.split(text, " ") {
+        [command, ..payload] -> {
+          Command(text: text, command: command, payload: case payload {
+            [] -> None
+            [payload, ..] -> Some(payload)
+          })
+        }
+        _ -> Command(text: text, command: "", payload: None)
+      }
+    }
+  }
 }
 
 fn do_handle_update(bot: Bot, message: Message, handlers: List(Handler)) -> Nil {
   case handlers {
     [handler, ..rest] -> {
-      case handler.handler(new_context(bot, message)) {
+      let handle_result = case handler, message.kind {
+        HandleAll(handle), _ -> handle(Context(bot: bot, message: message))
+        HandleText(handle), TextMessage ->
+          handle(Context(bot: bot, message: message))
+
+        HandleCommand(handle, command), CommandMessage -> {
+          let message_command = extract_command(message)
+          case message_command.command == command {
+            True ->
+              handle(CommandContext(
+                bot: bot,
+                message: message,
+                command: message_command,
+              ))
+            False -> Ok(Nil)
+          }
+        }
+        HandleCommands(handle, commands), CommandMessage -> {
+          let message_command = extract_command(message)
+          case list.contains(commands, message_command.command) {
+            True ->
+              handle(CommandContext(
+                bot: bot,
+                message: message,
+                command: message_command,
+              ))
+            False -> Ok(Nil)
+          }
+        }
+        _, _ -> Ok(Nil)
+      }
+
+      case handle_result {
         Ok(_) -> do_handle_update(bot, message, rest)
         Error(_) -> {
-          logging.log(logging.Error, "Failed to handle message")
+          log.error("Failed to handle message")
           Nil
         }
       }
