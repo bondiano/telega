@@ -6,6 +6,7 @@ import gleam/json
 import gleam/httpc
 import gleam/result
 import gleam/dynamic
+import gleam/list
 
 type TelegramApiRequest {
   TelegramApiPostRequest(
@@ -129,23 +130,19 @@ pub fn set_my_commands(
   commands commands: BotCommands,
   options options: Option(BotCommandsOptions),
 ) -> Result(Response(String), String) {
-  let options = case options {
-    None -> []
-    Some(options) -> {
-      let scope = case options.scope {
-        None -> []
-        Some(scope) -> [#("scope", bot_command_scope_to_json(scope))]
-      }
+  let options =
+    option.unwrap(options, BotCommandsOptions(scope: None, language_code: None))
+  let scope =
+    options.scope
+    |> option.map(fn(scope) { [#("scope", bot_command_scope_to_json(scope))] })
+    |> option.unwrap([])
 
-      case options.language_code {
-        None -> scope
-        Some(language_code) -> [
-          #("language_code", json.string(language_code)),
-          ..scope
-        ]
-      }
-    }
-  }
+  let language_code =
+    options.language_code
+    |> option.map(fn(language_code) {
+      [#("language_code", json.string(language_code))]
+    })
+    |> option.unwrap([])
 
   let body_json =
     json.object([
@@ -155,7 +152,7 @@ pub fn set_my_commands(
           json.object([
             #("command", json.string(command.command)),
             #("description", json.string(command.description)),
-            ..options
+            ..list.concat([scope, language_code])
           ])
         }),
       ),
@@ -215,7 +212,6 @@ fn api_to_request(
       request.to(url)
       |> result.map(request.set_method(_, Get))
       |> result.map(set_query(_, query))
-      |> result.map(request.set_header(_, "Content-Type", "application/json"))
     }
     TelegramApiPostRequest(url: url, query: query, body: body) -> {
       request.to(url)
