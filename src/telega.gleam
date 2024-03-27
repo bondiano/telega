@@ -1,12 +1,11 @@
-import gleam/result.{try}
+import gleam/result
 import gleam/option.{type Option, None, Some}
 import gleam/list
 import gleam/string
 import telega/message.{type Message, CommandMessage, TextMessage}
+import telega/types/message as raw_message
 import telega/api.{type BotCommands, type BotCommandsOptions}
 import telega/log
-
-const telegram_url = "https://api.telegram.org/bot"
 
 pub opaque type Config {
   Config(
@@ -15,7 +14,6 @@ pub opaque type Config {
     webhook_path: String,
     /// An optional string to compare to X-Telegram-Bot-Api-Secret-Token
     secret_token: Option(String),
-    telegram_url: String,
   )
 }
 
@@ -76,7 +74,6 @@ pub fn new(
       token: token,
       server_url: server_url,
       webhook_path: webhook_path,
-      telegram_url: telegram_url,
       secret_token: secret_token,
     ),
   )
@@ -98,30 +95,21 @@ pub fn is_secret_token_valid(bot: Bot, token: String) -> Bool {
 /// Set the webhook URL using [setWebhook](https://core.telegram.org/bots/api#setwebhook) API.
 pub fn set_webhook(bot: Bot) -> Result(Bool, String) {
   let webhook_url = bot.config.server_url <> "/" <> bot.config.webhook_path
-  use response <- try(api.set_webhook(
+  api.set_webhook(
     webhook_url: webhook_url,
     token: bot.config.token,
-    telegram_url: bot.config.telegram_url,
     secret_token: bot.config.secret_token,
-  ))
-
-  case response.status {
-    200 -> Ok(True)
-    _ -> Error("Failed to set webhook")
-  }
+  )
 }
 
 /// Use this method to send text messages.
-pub fn reply(ctx ctx: Context, text text: String) -> Result(Message, String) {
+pub fn reply(
+  ctx ctx: Context,
+  text text: String,
+) -> Result(raw_message.Message, String) {
   let chat_id = ctx.message.raw.chat.id
 
-  api.send_message(
-    token: ctx.bot.config.token,
-    telegram_url: ctx.bot.config.telegram_url,
-    chat_id: chat_id,
-    text: text,
-  )
-  |> result.map(fn(_) { ctx.message })
+  api.send_message(token: ctx.bot.config.token, chat_id: chat_id, text: text)
 }
 
 /// Use this method to change the list of the bot's commands. See [commands documentation](https://core.telegram.org/bots/features#commands) for more details about bot commands. Returns True on success.
@@ -132,7 +120,6 @@ pub fn set_my_commands(
 ) -> Result(Bool, String) {
   api.set_my_commands(
     token: ctx.bot.config.token,
-    telegram_url: ctx.bot.config.telegram_url,
     commands: commands,
     options: options,
   )

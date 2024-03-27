@@ -27,7 +27,7 @@ pub type User {
     /// User's or bot's first name
     first_name: String,
     /// User's or bot's last name
-    last_name: String,
+    last_name: Option(String),
     /// Username, for private chats, supergroups and channels if available
     username: Option(String),
     /// [IETF language tag](https://en.wikipedia.org/wiki/IETF_language_tag) of the user's language
@@ -196,7 +196,7 @@ fn user_decoder() {
     dynamic.field("id", dynamic.int),
     dynamic.field("is_bot", dynamic.bool),
     dynamic.field("first_name", dynamic.string),
-    dynamic.field("last_name", dynamic.string),
+    dynamic.optional_field("last_name", dynamic.string),
     dynamic.optional_field("username", dynamic.string),
     dynamic.optional_field("language_code", dynamic.string),
     dynamic.optional_field("is_premium", dynamic.bool),

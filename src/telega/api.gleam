@@ -1,12 +1,15 @@
 import gleam/http/request.{type Request}
-import gleam/http/response.{type Response}
+import gleam/http/response.{type Response, Response}
 import gleam/http.{Get, Post}
 import gleam/option.{type Option, None, Some}
 import gleam/json
 import gleam/httpc
 import gleam/result
-import gleam/dynamic
+import gleam/dynamic.{type DecodeError, type Dynamic}
 import gleam/list
+import telega/types/message.{type Message}
+
+const telegram_url = "https://api.telegram.org/bot"
 
 type TelegramApiRequest {
   TelegramApiPostRequest(
@@ -76,41 +79,38 @@ pub type BotCommandsOptions {
   )
 }
 
+pub type ApiResponse(result) {
+  ApiResponse(ok: Bool, result: result)
+}
+
 // TODO: Support all options
 /// **Official reference:** https://core.telegram.org/bots/api#setwebhook
 pub fn set_webhook(
   token token: String,
-  telegram_url telegram_url: String,
   webhook_url webhook_url: String,
   secret_token secret_token: Option(String),
-) -> Result(Response(String), String) {
+) -> Result(Bool, String) {
   let query = [#("url", webhook_url)]
   let query = case secret_token {
     None -> query
     Some(secret_token) -> [#("secret_token", secret_token), ..query]
   }
 
-  new_get_request(
-    token: token,
-    telegram_url: telegram_url,
-    path: "setWebhook",
-    query: Some(query),
-  )
+  new_get_request(token: token, path: "setWebhook", query: Some(query))
   |> api_to_request
   |> fetch
+  |> map_resonse(dynamic.bool)
 }
 
 // TODO: Support all options
 /// **Official reference:** https://core.telegram.org/bots/api#sendmessage
 pub fn send_message(
   token token: String,
-  telegram_url telegram_url: String,
   chat_id chat_id: Int,
   text text: String,
-) -> Result(Response(String), String) {
+) -> Result(Message, String) {
   new_post_request(
     token: token,
-    telegram_url: telegram_url,
     path: "sendMessage",
     body: json.object([
         #("chat_id", json.int(chat_id)),
@@ -121,12 +121,12 @@ pub fn send_message(
   )
   |> api_to_request
   |> fetch
+  |> map_resonse(message.decode)
 }
 
 /// **Official reference:** https://core.telegram.org/bots/api#setmycommands
 pub fn set_my_commands(
   token token: String,
-  telegram_url telegram_url: String,
   commands commands: BotCommands,
   options options: Option(BotCommandsOptions),
 ) -> Result(Response(String), String) {
@@ -160,7 +160,6 @@ pub fn set_my_commands(
 
   new_post_request(
     token: token,
-    telegram_url: telegram_url,
     path: "setMyCommands",
     body: json.to_string(body_json),
     query: None,
@@ -171,7 +170,6 @@ pub fn set_my_commands(
 
 fn new_post_request(
   token token: String,
-  telegram_url telegram_url: String,
   path path: String,
   body body: String,
   query query: Option(List(#(String, String))),
@@ -183,7 +181,6 @@ fn new_post_request(
 
 fn new_get_request(
   token token: String,
-  telegram_url telegram_url: String,
   path path: String,
   query query: Option(List(#(String, String))),
 ) {
@@ -272,4 +269,27 @@ fn bot_command_scope_to_json(scope: BotCommandScope) {
         #("user_id", json.int(user_id)),
       ])
   }
+}
+
+fn map_resonse(
+  response: Result(Response(String), String),
+  result_decoder: fn(Dynamic) -> Result(a, List(DecodeError)),
+) -> Result(a, String) {
+  response
+  |> result.map(fn(response) {
+    let Response(body: body, ..) = response
+    let decode = response_decoder(result_decoder)
+    json.decode(body, decode)
+    |> result.map_error(fn(_) { "Failed to decode response: " <> body })
+    |> result.map(fn(response) { response.result })
+  })
+  |> result.flatten
+}
+
+fn response_decoder(result_decoder: fn(Dynamic) -> Result(a, List(DecodeError))) {
+  dynamic.decode2(
+    ApiResponse,
+    dynamic.field("ok", dynamic.bool),
+    dynamic.field("result", result_decoder),
+  )
 }

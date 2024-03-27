@@ -3,6 +3,7 @@ version = "0.0.3"
 description = "Gleam Telegram Bot Library"
 licences = ["Apache-2.0"]
 repository = { type = "github", user = "bondiano", repo = "telega" }
+gleam = ">= 0.32.0"
 
 [dependencies]
 gleam_stdlib = "~> 0.34 or ~> 1.0"
@@ -14,3 +15,4 @@ gleam_json = "~> 1.0"
 
 [dev-dependencies]
 gleeunit = "~> 1.0"
+mockth = "0.3.2"
