@@ -6,8 +6,8 @@ import gleam/json
 import gleam/httpc
 import gleam/result
 import gleam/dynamic.{type DecodeError, type Dynamic}
-import gleam/list
 import telega/types/message.{type Message}
+import telega/types/bot_command.{type BotCommand, type BotCommandOptions}
 
 const telegram_url = "https://api.telegram.org/bot"
 
@@ -18,65 +18,6 @@ type TelegramApiRequest {
     query: Option(List(#(String, String))),
   )
   TelegramApiGetRequest(url: String, query: Option(List(#(String, String))))
-}
-
-pub type BotCommand {
-  BotCommand(
-    /// Text of the command; 1-32 characters. Can contain only lowercase English letters, digits and underscores.
-    command: String,
-    /// Description of the command; 1-256 characters.
-    description: String,
-  )
-}
-
-pub type BotCommands =
-  List(BotCommand)
-
-pub type IntOrString {
-  Int(Int)
-  String(String)
-}
-
-pub type BotCommandScope {
-  /// Represents the default scope of bot commands. Default commands are used if no commands with a narrower scope are specified for the user.
-  BotCommandDefaultScope
-  /// Represents the scope of bot commands, covering all private chats.
-  BotCommandAllPrivateChatsScope
-  /// Represents the scope of bot commands, covering all group and supergroup chats.
-  BotCommandScopeAllGroupChats
-  /// Represents the scope of bot commands, covering all group and supergroup chat administrators.
-  BotCommandScopeAllChatAdministrators
-  /// Represents the scope of bot commands, covering a specific chat.
-  BotCommandScopeChat(
-    /// Unique identifier for the target chat or username of the target supergroup (in the format @supergroupusername)
-    chat_id: Int,
-  )
-  /// Represents the scope of bot commands, covering a specific chat.
-  BotCommandScopeChatString(
-    /// Unique identifier for the target chat or username of the target supergroup (in the format @supergroupusername)
-    chat_id: IntOrString,
-  )
-  /// Represents the scope of bot commands, covering all administrators of a specific group or supergroup chat.
-  BotCommandScopeChatAdministrators(
-    /// Unique identifier for the target chat or username of the target supergroup (in the format @supergroupusername)
-    chat_id: IntOrString,
-  )
-  /// Represents the scope of bot commands, covering a specific member of a group or supergroup chat.
-  BotCommandScopeChatMember(
-    /// Unique identifier for the target chat or username of the target supergroup (in the format @supergroupusername)
-    chat_id: IntOrString,
-    /// Unique identifier of the target user
-    user_id: Int,
-  )
-}
-
-pub type BotCommandsOptions {
-  BotCommandsOptions(
-    /// An object, describing scope of users for which the commands are relevant. Defaults to `BotCommandScopeDefault`.
-    scope: Option(BotCommandScope),
-    /// A two-letter ISO 639-1 language code. If empty, commands will be applied to all users from the given scope, for whose language there are no dedicated commands
-    language_code: Option(String),
-  )
 }
 
 pub type ApiResponse(result) {
@@ -127,22 +68,15 @@ pub fn send_message(
 /// **Official reference:** https://core.telegram.org/bots/api#setmycommands
 pub fn set_my_commands(
   token token: String,
-  commands commands: BotCommands,
-  options options: Option(BotCommandsOptions),
-) -> Result(Response(String), String) {
+  commands commands: List(BotCommand),
+  options options: Option(BotCommandOptions),
+) -> Result(Bool, String) {
   let options =
-    option.unwrap(options, BotCommandsOptions(scope: None, language_code: None))
-  let scope =
-    options.scope
-    |> option.map(fn(scope) { [#("scope", bot_command_scope_to_json(scope))] })
-    |> option.unwrap([])
-
-  let language_code =
-    options.language_code
-    |> option.map(fn(language_code) {
-      [#("language_code", json.string(language_code))]
-    })
-    |> option.unwrap([])
+    option.unwrap(
+      options,
+      bot_command.BotCommandOptions(scope: None, language_code: None),
+    )
+    |> bot_command.encode_botcommand_options
 
   let body_json =
     json.object([
@@ -152,7 +86,7 @@ pub fn set_my_commands(
           json.object([
             #("command", json.string(command.command)),
             #("description", json.string(command.description)),
-            ..list.concat([scope, language_code])
+            ..options
           ])
         }),
       ),
@@ -166,6 +100,57 @@ pub fn set_my_commands(
   )
   |> api_to_request
   |> fetch
+  |> map_resonse(dynamic.bool)
+}
+
+/// **Official reference:** https://core.telegram.org/bots/api#deletemycommands
+pub fn delete_my_commands(
+  token token: String,
+  options options: Option(BotCommandOptions),
+) -> Result(Bool, String) {
+  let options =
+    option.unwrap(
+      options,
+      bot_command.BotCommandOptions(scope: None, language_code: None),
+    )
+    |> bot_command.encode_botcommand_options
+
+  let body_json = json.object(options)
+
+  new_post_request(
+    token: token,
+    path: "deleteMyCommands",
+    body: json.to_string(body_json),
+    query: None,
+  )
+  |> api_to_request
+  |> fetch
+  |> map_resonse(dynamic.bool)
+}
+
+/// **Official reference:** https://core.telegram.org/bots/api#getmycommands
+pub fn get_my_commands(
+  token token: String,
+  options options: Option(BotCommandOptions),
+) -> Result(List(BotCommand), String) {
+  let options =
+    option.unwrap(
+      options,
+      bot_command.BotCommandOptions(scope: None, language_code: None),
+    )
+    |> bot_command.encode_botcommand_options
+
+  let body_json = json.object(options)
+
+  new_post_request(
+    token: token,
+    path: "getMyCommands",
+    query: None,
+    body: json.to_string(body_json),
+  )
+  |> api_to_request
+  |> fetch
+  |> map_resonse(bot_command.decode)
 }
 
 fn new_post_request(
@@ -229,46 +214,6 @@ fn fetch(api_request: Result(Request(String), String)) {
     dynamic.string(error)
     |> result.unwrap("Failed to send request")
   })
-}
-
-fn string_or_int_to_json(value: IntOrString) {
-  case value {
-    Int(value) -> json.int(value)
-    String(value) -> json.string(value)
-  }
-}
-
-fn bot_command_scope_to_json(scope: BotCommandScope) {
-  case scope {
-    BotCommandDefaultScope -> json.object([#("type", json.string("default"))])
-    BotCommandAllPrivateChatsScope ->
-      json.object([#("type", json.string("all_private_chats"))])
-    BotCommandScopeAllGroupChats ->
-      json.object([#("type", json.string("all_group_chats"))])
-    BotCommandScopeAllChatAdministrators ->
-      json.object([#("type", json.string("all_chat_administrators"))])
-    BotCommandScopeChat(chat_id: chat_id) ->
-      json.object([
-        #("type", json.string("chat")),
-        #("chat_id", json.int(chat_id)),
-      ])
-    BotCommandScopeChatString(chat_id: chat_id) ->
-      json.object([
-        #("type", json.string("chat")),
-        #("chat_id", string_or_int_to_json(chat_id)),
-      ])
-    BotCommandScopeChatAdministrators(chat_id: chat_id) ->
-      json.object([
-        #("type", json.string("chat_administrators")),
-        #("chat_id", string_or_int_to_json(chat_id)),
-      ])
-    BotCommandScopeChatMember(chat_id: chat_id, user_id: user_id) ->
-      json.object([
-        #("type", json.string("chat_member")),
-        #("chat_id", string_or_int_to_json(chat_id)),
-        #("user_id", json.int(user_id)),
-      ])
-  }
 }
 
 fn map_resonse(

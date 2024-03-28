@@ -1,10 +1,10 @@
-import gleam/result
 import gleam/option.{type Option, None, Some}
 import gleam/list
 import gleam/string
 import telega/message.{type Message, CommandMessage, TextMessage}
 import telega/types/message as raw_message
-import telega/api.{type BotCommands, type BotCommandsOptions}
+import telega/types/bot_command.{type BotCommand, type BotCommandOptions}
+import telega/api
 import telega/log
 
 pub opaque type Config {
@@ -115,15 +115,30 @@ pub fn reply(
 /// Use this method to change the list of the bot's commands. See [commands documentation](https://core.telegram.org/bots/features#commands) for more details about bot commands. Returns True on success.
 pub fn set_my_commands(
   ctx ctx: Context,
-  commands commands: BotCommands,
-  options options: Option(BotCommandsOptions),
+  commands commands: List(BotCommand),
+  options options: Option(BotCommandOptions),
 ) -> Result(Bool, String) {
   api.set_my_commands(
     token: ctx.bot.config.token,
     commands: commands,
     options: options,
   )
-  |> result.map(fn(_) { True })
+}
+
+/// Use this method to get the current list of the bot's commands for the given scope and user language.
+pub fn get_my_commands(
+  ctx: Context,
+  options options: Option(BotCommandOptions),
+) -> Result(List(BotCommand), String) {
+  api.get_my_commands(token: ctx.bot.config.token, options: options)
+}
+
+/// Use this method to delete the list of the bot's commands for the given scope and user language. After deletion, [higher level commands](https://core.telegram.org/bots/api#determining-list-of-commands) will be shown to affected users.
+pub fn delete_my_commands(
+  ctx: Context,
+  options options: Option(BotCommandOptions),
+) -> Result(Bool, String) {
+  api.delete_my_commands(token: ctx.bot.config.token, options: options)
 }
 
 /// Add a handler to the bot.
