@@ -1,6 +1,6 @@
 name = "bot"
 version = "1.0.0"
-description = "A Telega Echo Bot example"
+description = "A Telega Commands example"
 
 [dependencies]
 gleam_stdlib = "~> 0.34 or ~> 1.0"

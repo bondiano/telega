@@ -4,8 +4,9 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleam/dynamic.{type Dynamic}
 import gleam/result.{try}
-import telega/types/update
-import telega/types/message.{type Message as RawMessage, type MessageEntity}
+import telega/models/update
+import telega/models/message.{type Message as RawMessage}
+import telega/models/message_entity.{type MessageEntity}
 
 pub type MessageKind {
   CommonMessage

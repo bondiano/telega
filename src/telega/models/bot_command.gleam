@@ -1,10 +1,11 @@
-import gleam/option.{type Option}
+import gleam/option.{type Option, None}
 import gleam/json.{type Json}
 import gleam/list
 import gleam/dynamic.{type Dynamic}
-import telega/types/common.{type IntOrString}
+import telega/models/common.{type IntOrString}
 
 pub type BotCommand {
+  /// **Official reference:** https://core.telegram.org/bots/api#botcommand
   BotCommand(
     /// Text of the command; 1-32 characters. Can contain only lowercase English letters, digits and underscores.
     command: String,
@@ -13,6 +14,7 @@ pub type BotCommand {
   )
 }
 
+/// **Official reference:** https://core.telegram.org/bots/api#botcommandscope
 pub type BotCommandScope {
   /// Represents the default scope of bot commands. Default commands are used if no commands with a narrower scope are specified for the user.
   BotCommandDefaultScope
@@ -46,8 +48,8 @@ pub type BotCommandScope {
   )
 }
 
-pub type BotCommandOptions {
-  BotCommandOptions(
+pub type BotCommandParameters {
+  BotCommandParameters(
     /// An object, describing scope of users for which the commands are relevant. Defaults to `BotCommandScopeDefault`.
     scope: Option(BotCommandScope),
     /// A two-letter ISO 639-1 language code. If empty, commands will be applied to all users from the given scope, for whose language there are no dedicated commands
@@ -55,27 +57,29 @@ pub type BotCommandOptions {
   )
 }
 
-pub fn decode(json: Dynamic) -> Result(List(BotCommand), dynamic.DecodeErrors) {
-  let decode =
-    dynamic.list(dynamic.decode2(
-      BotCommand,
-      dynamic.field("command", dynamic.string),
-      dynamic.field("description", dynamic.string),
-    ))
-
-  decode(json)
+pub fn new_botcommand_parameters() -> BotCommandParameters {
+  BotCommandParameters(scope: None, language_code: None)
 }
 
-pub fn encode_botcommand_options(
-  options: BotCommandOptions,
+pub fn decode(json: Dynamic) -> Result(List(BotCommand), dynamic.DecodeErrors) {
+  json
+  |> dynamic.list(dynamic.decode2(
+    BotCommand,
+    dynamic.field("command", dynamic.string),
+    dynamic.field("description", dynamic.string),
+  ))
+}
+
+pub fn encode_botcommand_parameters(
+  params: BotCommandParameters,
 ) -> List(#(String, Json)) {
   let scope =
-    options.scope
+    params.scope
     |> option.map(fn(scope) { [#("scope", scope_to_json(scope))] })
     |> option.unwrap([])
 
   let language_code =
-    options.language_code
+    params.language_code
     |> option.map(fn(language_code) {
       [#("language_code", json.string(language_code))]
     })
@@ -115,4 +119,12 @@ pub fn scope_to_json(scope: BotCommandScope) {
         #("user_id", json.int(user_id)),
       ])
   }
+}
+
+pub fn from(commands: List(#(String, String))) -> List(BotCommand) {
+  commands
+  |> list.map(fn(command) {
+    let #(command, description) = command
+    BotCommand(command: command, description: description)
+  })
 }

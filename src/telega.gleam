@@ -1,11 +1,12 @@
 import gleam/option.{type Option, None, Some}
 import gleam/list
 import gleam/string
-import telega/message.{type Message, CommandMessage, TextMessage}
-import telega/types/message as raw_message
-import telega/types/bot_command.{type BotCommand, type BotCommandOptions}
 import telega/api
 import telega/log
+import telega/models/message as raw_message
+import telega/message.{type Message, CommandMessage, TextMessage}
+import telega/models/bot_command.{type BotCommand, type BotCommandParameters}
+import telega/models/dice.{type SendDiceParameters}
 
 pub opaque type Config {
   Config(
@@ -26,13 +27,13 @@ pub type Handler {
   HandleAll(handler: fn(Context) -> Result(Nil, Nil))
   /// Handle a specific command.
   HandleCommand(
-    handler: fn(CommandContext) -> Result(Nil, Nil),
     command: String,
+    handler: fn(CommandContext) -> Result(Nil, Nil),
   )
   /// Handle multiple commands.
   HandleCommands(
-    handler: fn(CommandContext) -> Result(Nil, Nil),
     commands: List(String),
+    handler: fn(CommandContext) -> Result(Nil, Nil),
   )
   /// Handle text messages.
   HandleText(handler: fn(TextContext) -> Result(Nil, Nil))
@@ -107,38 +108,52 @@ pub fn reply(
   ctx ctx: Context,
   text text: String,
 ) -> Result(raw_message.Message, String) {
-  let chat_id = ctx.message.raw.chat.id
-
-  api.send_message(token: ctx.bot.config.token, chat_id: chat_id, text: text)
+  api.send_message(
+    token: ctx.bot.config.token,
+    chat_id: ctx.message.raw.chat.id,
+    text: text,
+  )
 }
 
 /// Use this method to change the list of the bot's commands. See [commands documentation](https://core.telegram.org/bots/features#commands) for more details about bot commands. Returns True on success.
 pub fn set_my_commands(
   ctx ctx: Context,
   commands commands: List(BotCommand),
-  options options: Option(BotCommandOptions),
+  parameters parameters: Option(BotCommandParameters),
 ) -> Result(Bool, String) {
   api.set_my_commands(
     token: ctx.bot.config.token,
     commands: commands,
-    options: options,
+    parameters: parameters,
   )
 }
 
 /// Use this method to get the current list of the bot's commands for the given scope and user language.
 pub fn get_my_commands(
   ctx: Context,
-  options options: Option(BotCommandOptions),
+  parameters parameters: Option(BotCommandParameters),
 ) -> Result(List(BotCommand), String) {
-  api.get_my_commands(token: ctx.bot.config.token, options: options)
+  api.get_my_commands(token: ctx.bot.config.token, parameters: parameters)
 }
 
 /// Use this method to delete the list of the bot's commands for the given scope and user language. After deletion, [higher level commands](https://core.telegram.org/bots/api#determining-list-of-commands) will be shown to affected users.
 pub fn delete_my_commands(
   ctx: Context,
-  options options: Option(BotCommandOptions),
+  parameters parameters: Option(BotCommandParameters),
 ) -> Result(Bool, String) {
-  api.delete_my_commands(token: ctx.bot.config.token, options: options)
+  api.delete_my_commands(token: ctx.bot.config.token, parameters: parameters)
+}
+
+/// Use this method to send an animated emoji that will display a random value.
+pub fn send_dice(
+  ctx: Context,
+  parameters parameters: Option(SendDiceParameters),
+) -> Result(raw_message.Message, String) {
+  api.send_dice(
+    token: ctx.bot.config.token,
+    chat_id: ctx.message.raw.chat.id,
+    parameters: parameters,
+  )
 }
 
 /// Add a handler to the bot.
@@ -183,7 +198,7 @@ fn do_handle_update(bot: Bot, message: Message, handlers: List(Handler)) -> Nil 
             text: extract_text(message),
           ))
 
-        HandleCommand(handle, command), CommandMessage -> {
+        HandleCommand(command, handle), CommandMessage -> {
           let message_command = extract_command(message)
           case message_command.command == command {
             True ->
@@ -194,7 +209,7 @@ fn do_handle_update(bot: Bot, message: Message, handlers: List(Handler)) -> Nil 
             False -> Ok(Nil)
           }
         }
-        HandleCommands(handle, commands), CommandMessage -> {
+        HandleCommands(commands, handle), CommandMessage -> {
           let message_command = extract_command(message)
           case list.contains(commands, message_command.command) {
             True ->

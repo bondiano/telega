@@ -1,5 +1,5 @@
 import gleam/dynamic.{type Dynamic}
-import telega/types/message.{type Message}
+import telega/models/message.{type Message}
 
 pub type Update {
   /// **Official reference:** https://core.telegram.org/bots/api#update

@@ -1,6 +1,9 @@
 import gleam/dynamic.{type Dynamic}
 import gleam/option.{type Option}
 import gleam/list
+import telega/models/message_entity.{type MessageEntity}
+import telega/models/user.{type User}
+import telega/models/keyboard.{type InlineKeyboardMarkup}
 
 pub type Chat {
   /// **Official reference:** https://core.telegram.org/bots/api#chat
@@ -16,65 +19,6 @@ pub type Chat {
     /// True, if the supergroup chat is a forum (has [topics](https://telegram.org/blog/topics-in-groups-collectible-usernames#topics-in-groups) enabled)
     is_forum: Option(Bool),
   )
-}
-
-pub type User {
-  /// **Official reference:** https://core.telegram.org/bots/api#user
-  User(
-    /// Unique identifier for this user or bot.
-    id: Int,
-    is_bot: Bool,
-    /// User's or bot's first name
-    first_name: String,
-    /// User's or bot's last name
-    last_name: Option(String),
-    /// Username, for private chats, supergroups and channels if available
-    username: Option(String),
-    /// [IETF language tag](https://en.wikipedia.org/wiki/IETF_language_tag) of the user's language
-    language_code: Option(String),
-    /// True, if this user is a Telegram Premium user
-    is_premium: Option(Bool),
-    /// True, if this user added the bot to the attachment menu
-    added_to_attachment_menu: Option(Bool),
-  )
-}
-
-pub type MessageEntity {
-  /// **Official reference:** https://core.telegram.org/bots/api#messageentity
-  MessageEntity(
-    /// Type of the entity. Currently, can be "mention" (`@username`), "hashtag" (`#hashtag`), "cashtag" (`$USD`), "bot_command" (`/start@jobs_bot`), "url" (`https://telegram.org`), "email" (`do-not-reply@telegram.org`), "phone_number" (`+1-212-555-0123`), "bold" (**bold text**), "italic" (_italic text_), "underline" (underlined text), "strikethrough" (strikethrough text), "spoiler" (spoiler message), "blockquote" (block quotation), "code" (monowidth string), "pre" (monowidth block), "text_link" (for clickable text URLs), "text_mention" (for users [without usernames](https://telegram.org/blog/edit#new-mentions)), "custom_emoji" (for inline custom emoji stickers)
-    entity_type: String,
-    /// Offset in [UTF-16 code units](https://core.telegram.org/api/entities#entity-length) to the start of the entity
-    offset: Int,
-    /// Length of the entity in [UTF-16 code units](https://core.telegram.org/api/entities#entity-length)
-    length: Int,
-    /// For "text_link" only, URL that will be opened after user taps on the text
-    url: Option(String),
-    /// For "text_mention" only, the mentioned user
-    user: Option(User),
-    /// For "pre" only, the programming language of the entity text
-    language: Option(String),
-    /// For "custom_emoji" only, unique identifier of the custom emoji. Use [getCustomEmojiStickers](https://core.telegram.org/bots/api#getcustomemojistickers) to get full information about the sticker
-    custom_emoji_id: Option(String),
-  )
-}
-
-pub type InlineKeyboardButton {
-  // TODO: complete the implementation
-  /// **Official reference:** https://core.telegram.org/bots/api#inlinekeyboardbutton
-  InlineKeyboardButton(
-    /// Label text on the button
-    text: String,
-    /// HTTP or `tg://` URL to be opened when the button is pressed. Links `tg://user?id=<user_id>` can be used to mention a user by their identifier without using a username, if this is allowed by their privacy settings.
-    url: Option(String),
-    /// Data to be sent in a [callback query](https://core.telegram.org/bots/api#callbackquery) to the bot when button is pressed, 1-64 bytes
-    callback_data: Option(String),
-  )
-}
-
-pub type InlineKeyboardMarkup {
-  /// **Official reference:** https://core.telegram.org/bots/api#inlinekeyboardmarkup
-  InlineKeyboardMarkup(inline_keyboard: List(List(InlineKeyboardButton)))
 }
 
 pub type Message {
@@ -190,20 +134,6 @@ pub type Message {
   )
 }
 
-fn user_decoder() {
-  dynamic.decode8(
-    User,
-    dynamic.field("id", dynamic.int),
-    dynamic.field("is_bot", dynamic.bool),
-    dynamic.field("first_name", dynamic.string),
-    dynamic.optional_field("last_name", dynamic.string),
-    dynamic.optional_field("username", dynamic.string),
-    dynamic.optional_field("language_code", dynamic.string),
-    dynamic.optional_field("is_premium", dynamic.bool),
-    dynamic.optional_field("added_to_attachment_menu", dynamic.bool),
-  )
-}
-
 fn chat_decoder() {
   dynamic.decode5(
     Chat,
@@ -215,47 +145,12 @@ fn chat_decoder() {
   )
 }
 
-fn message_entity_decoder() {
-  dynamic.decode7(
-    MessageEntity,
-    dynamic.field("type", dynamic.string),
-    dynamic.field("offset", dynamic.int),
-    dynamic.field("length", dynamic.int),
-    dynamic.optional_field("url", dynamic.string),
-    dynamic.optional_field("user", user_decoder()),
-    dynamic.optional_field("language", dynamic.string),
-    dynamic.optional_field("custom_emoji_id", dynamic.string),
-  )
-}
-
-fn inline_keyboard_button_decoder() {
-  dynamic.decode3(
-    InlineKeyboardButton,
-    dynamic.field("text", dynamic.string),
-    dynamic.optional_field("url", dynamic.string),
-    dynamic.optional_field("callback_data", dynamic.string),
-  )
-}
-
-fn inline_keyboard_markup_decoder() {
-  dynamic.decode1(
-    InlineKeyboardMarkup,
-    dynamic.field(
-      "inline_keyboard",
-      dynamic.list(dynamic.list(inline_keyboard_button_decoder())),
-    ),
-  )
-}
-
 pub fn decode(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
-  let decode_user = user_decoder()
   let decode_chat = chat_decoder()
-  let decode_message_entity = message_entity_decoder()
-  let decode_inline_keyboard_markup = inline_keyboard_markup_decoder()
   let decode_message_id = dynamic.field("message_id", dynamic.int)
   let decode_message_thread_id =
     dynamic.optional_field("message_thread_id", dynamic.int)
-  let decode_from = dynamic.optional_field("from", decode_user)
+  let decode_from = dynamic.optional_field("from", user.decode)
   let decode_sender_chat = dynamic.optional_field("sender_chat", decode_chat)
   let decode_sender_boost_count =
     dynamic.optional_field("sender_boost_count", dynamic.int)
@@ -267,7 +162,7 @@ pub fn decode(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
     dynamic.optional_field("is_automatic_forward", dynamic.bool)
   let decode_reply_to_message =
     dynamic.optional_field("reply_to_message", decode)
-  let decode_via_bot = dynamic.optional_field("via_bot", decode_user)
+  let decode_via_bot = dynamic.optional_field("via_bot", user.decode)
   let decode_edit_date = dynamic.optional_field("edit_date", dynamic.int)
   let decode_has_protected_content =
     dynamic.optional_field("has_protected_content", dynamic.bool)
@@ -277,19 +172,19 @@ pub fn decode(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
     dynamic.optional_field("author_signature", dynamic.string)
   let decode_text = dynamic.optional_field("text", dynamic.string)
   let decode_entities =
-    dynamic.optional_field("entities", dynamic.list(decode_message_entity))
+    dynamic.optional_field("entities", dynamic.list(message_entity.decode))
   let decode_caption = dynamic.optional_field("caption", dynamic.string)
   let decode_caption_entities =
     dynamic.optional_field(
       "caption_entities",
-      dynamic.list(decode_message_entity),
+      dynamic.list(message_entity.decode),
     )
   let decode_has_media_spoiler =
     dynamic.optional_field("has_media_spoiler", dynamic.bool)
   let decode_new_chat_members =
-    dynamic.optional_field("new_chat_members", dynamic.list(decode_user))
+    dynamic.optional_field("new_chat_members", dynamic.list(user.decode))
   let decode_left_chat_member =
-    dynamic.optional_field("left_chat_member", decode_user)
+    dynamic.optional_field("left_chat_member", user.decode)
   let decode_new_chat_title =
     dynamic.optional_field("new_chat_title", dynamic.string)
   let decode_delete_chat_photo =
@@ -307,7 +202,7 @@ pub fn decode(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
   let decode_connected_website =
     dynamic.optional_field("connected_website", dynamic.string)
   let decode_inline_keyboard_markup =
-    dynamic.optional_field("reply_markup", decode_inline_keyboard_markup)
+    dynamic.optional_field("reply_markup", keyboard.decode_inline_markup)
 
   case
     decode_message_id(json),

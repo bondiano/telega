@@ -6,8 +6,9 @@ import gleam/json
 import gleam/httpc
 import gleam/result
 import gleam/dynamic.{type DecodeError, type Dynamic}
-import telega/types/message.{type Message}
-import telega/types/bot_command.{type BotCommand, type BotCommandOptions}
+import telega/models/message.{type Message}
+import telega/models/bot_command.{type BotCommand, type BotCommandParameters}
+import telega/models/dice.{type SendDiceParameters}
 
 const telegram_url = "https://api.telegram.org/bot"
 
@@ -69,14 +70,11 @@ pub fn send_message(
 pub fn set_my_commands(
   token token: String,
   commands commands: List(BotCommand),
-  options options: Option(BotCommandOptions),
+  parameters parameters: Option(BotCommandParameters),
 ) -> Result(Bool, String) {
-  let options =
-    option.unwrap(
-      options,
-      bot_command.BotCommandOptions(scope: None, language_code: None),
-    )
-    |> bot_command.encode_botcommand_options
+  let parameters =
+    option.unwrap(parameters, bot_command.new_botcommand_parameters())
+    |> bot_command.encode_botcommand_parameters
 
   let body_json =
     json.object([
@@ -86,7 +84,7 @@ pub fn set_my_commands(
           json.object([
             #("command", json.string(command.command)),
             #("description", json.string(command.description)),
-            ..options
+            ..parameters
           ])
         }),
       ),
@@ -106,16 +104,13 @@ pub fn set_my_commands(
 /// **Official reference:** https://core.telegram.org/bots/api#deletemycommands
 pub fn delete_my_commands(
   token token: String,
-  options options: Option(BotCommandOptions),
+  parameters parameters: Option(BotCommandParameters),
 ) -> Result(Bool, String) {
-  let options =
-    option.unwrap(
-      options,
-      bot_command.BotCommandOptions(scope: None, language_code: None),
-    )
-    |> bot_command.encode_botcommand_options
+  let parameters =
+    option.unwrap(parameters, bot_command.new_botcommand_parameters())
+    |> bot_command.encode_botcommand_parameters
 
-  let body_json = json.object(options)
+  let body_json = json.object(parameters)
 
   new_post_request(
     token: token,
@@ -131,16 +126,13 @@ pub fn delete_my_commands(
 /// **Official reference:** https://core.telegram.org/bots/api#getmycommands
 pub fn get_my_commands(
   token token: String,
-  options options: Option(BotCommandOptions),
+  parameters parameters: Option(BotCommandParameters),
 ) -> Result(List(BotCommand), String) {
-  let options =
-    option.unwrap(
-      options,
-      bot_command.BotCommandOptions(scope: None, language_code: None),
-    )
-    |> bot_command.encode_botcommand_options
+  let parameters =
+    option.unwrap(parameters, bot_command.new_botcommand_parameters())
+    |> bot_command.encode_botcommand_parameters
 
-  let body_json = json.object(options)
+  let body_json = json.object(parameters)
 
   new_post_request(
     token: token,
@@ -151,6 +143,27 @@ pub fn get_my_commands(
   |> api_to_request
   |> fetch
   |> map_resonse(bot_command.decode)
+}
+
+/// **Official reference:** https://core.telegram.org/bots/api#senddice
+pub fn send_dice(
+  token token: String,
+  chat_id chat_id: Int,
+  parameters parameters: Option(SendDiceParameters),
+) -> Result(Message, String) {
+  let parameters =
+    option.unwrap(parameters, dice.new_send_dice_parameters(chat_id))
+  let body_json = dice.encode_send_dice_parameters(parameters)
+
+  new_post_request(
+    token: token,
+    path: "sendDice",
+    query: None,
+    body: json.to_string(body_json),
+  )
+  |> api_to_request
+  |> fetch
+  |> map_resonse(message.decode)
 }
 
 fn new_post_request(
