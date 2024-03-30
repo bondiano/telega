@@ -5,6 +5,13 @@
 
 A [Gleam](https://gleam.run/) library for the Telegram Bot API.
 
+## It provides:
+
+- an inteface to the Telegram Bot HTTP-based APIs `telega/api`
+- adapter to use with [wisp](https://github.com/gleam-wisp/wisp)
+
+## Installation
+
 ```sh
 gleam add telega
 ```

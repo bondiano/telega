@@ -430,16 +430,14 @@ pub fn encode_botcommand_parameters(
   params: BotCommandParameters,
 ) -> List(#(String, Json)) {
   let scope =
-    params.scope
-    |> option.map(fn(scope) { [#("scope", bot_command_scope_to_json(scope))] })
-    |> option.unwrap([])
+    option_to_json_object_list(params.scope, "scope", bot_command_scope_to_json)
 
   let language_code =
-    params.language_code
-    |> option.map(fn(language_code) {
-      [#("language_code", json.string(language_code))]
-    })
-    |> option.unwrap([])
+    option_to_json_object_list(
+      params.language_code,
+      "language_code",
+      json.string,
+    )
 
   list.concat([scope, language_code])
 }

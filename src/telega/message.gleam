@@ -3,7 +3,7 @@ import gleam/string
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/dynamic.{type Dynamic}
-import gleam/result.{try}
+import gleam/result
 import telega/model.{type Message as RawMessage, type MessageEntity}
 
 pub type MessageKind {
@@ -23,9 +23,8 @@ pub type Message {
 
 /// Decode a message from the Telegram API.
 pub fn decode(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
-  use update <- try(model.decode_update(json))
-
-  Ok(raw_message_to_message(update.message))
+  model.decode_update(json)
+  |> result.map(fn(update) { raw_message_to_message(update.message) })
 }
 
 fn is_command_message(text: String, raw_message: RawMessage) -> Bool {

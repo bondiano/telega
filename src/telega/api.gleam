@@ -9,7 +9,7 @@ import gleam/dynamic.{type DecodeError, type Dynamic}
 import telega.{type Bot, type Context}
 import telega/model.{
   type BotCommand, type BotCommandParameters, type Message,
-  type SendDiceParameters,
+  type SendDiceParameters, type User,
 }
 
 const telegram_url = "https://api.telegram.org/bot"
@@ -23,65 +23,44 @@ type TelegramApiRequest {
   TelegramApiGetRequest(url: String, query: Option(List(#(String, String))))
 }
 
-pub type ApiResponse(result) {
+type ApiResponse(result) {
   ApiResponse(ok: Bool, result: result)
 }
 
+// TODO: Support all options from the official reference.
 /// Set the webhook URL using [setWebhook](https://core.telegram.org/bots/api#setwebhook) API.
 /// **Official reference:** https://core.telegram.org/bots/api#setwebhook
 pub fn set_webhook(bot: Bot) -> Result(Bool, String) {
   let webhook_url = bot.config.server_url <> "/" <> bot.config.webhook_path
-  do_set_webhook(
-    webhook_url: webhook_url,
-    token: bot.config.token,
-    secret_token: bot.config.secret_token,
-  )
-}
-
-// TODO: Support all options
-fn do_set_webhook(
-  token token: String,
-  webhook_url webhook_url: String,
-  secret_token secret_token: Option(String),
-) -> Result(Bool, String) {
   let query = [#("url", webhook_url)]
-  let query = case secret_token {
+  let query = case bot.config.secret_token {
     None -> query
     Some(secret_token) -> [#("secret_token", secret_token), ..query]
   }
 
-  new_get_request(token: token, path: "setWebhook", query: Some(query))
-  |> api_to_request
+  new_get_request(
+    token: bot.config.token,
+    path: "setWebhook",
+    query: Some(query),
+  )
   |> fetch
   |> map_resonse(dynamic.bool)
 }
 
+// TODO: Support all options from the official reference.
 /// Use this method to send text messages.
+/// **Official reference:** https://core.telegram.org/bots/api#sendmessage
 pub fn reply(ctx ctx: Context, text text: String) -> Result(Message, String) {
-  do_send_message(
-    token: ctx.bot.config.token,
-    chat_id: ctx.message.raw.chat.id,
-    text: text,
-  )
-}
-
-// TODO: Support all options
-fn do_send_message(
-  token token: String,
-  chat_id chat_id: Int,
-  text text: String,
-) -> Result(Message, String) {
   new_post_request(
-    token: token,
+    token: ctx.bot.config.token,
     path: "sendMessage",
     body: json.object([
-        #("chat_id", json.int(chat_id)),
+        #("chat_id", json.int(ctx.message.raw.chat.id)),
         #("text", json.string(text)),
       ])
       |> json.to_string,
     query: None,
   )
-  |> api_to_request
   |> fetch
   |> map_resonse(model.decode_message)
 }
@@ -90,18 +69,6 @@ fn do_send_message(
 /// **Official reference:** https://core.telegram.org/bots/api#setmycommands
 pub fn set_my_commands(
   ctx ctx: Context,
-  commands commands: List(BotCommand),
-  parameters parameters: Option(BotCommandParameters),
-) -> Result(Bool, String) {
-  do_set_my_commands(
-    token: ctx.bot.config.token,
-    commands: commands,
-    parameters: parameters,
-  )
-}
-
-fn do_set_my_commands(
-  token token: String,
   commands commands: List(BotCommand),
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(Bool, String) {
@@ -124,12 +91,11 @@ fn do_set_my_commands(
     ])
 
   new_post_request(
-    token: token,
+    token: ctx.bot.config.token,
     path: "setMyCommands",
     body: json.to_string(body_json),
     query: None,
   )
-  |> api_to_request
   |> fetch
   |> map_resonse(dynamic.bool)
 }
@@ -140,13 +106,6 @@ pub fn delete_my_commands(
   ctx: Context,
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(Bool, String) {
-  do_delete_my_commands(token: ctx.bot.config.token, parameters: parameters)
-}
-
-fn do_delete_my_commands(
-  token token: String,
-  parameters parameters: Option(BotCommandParameters),
-) -> Result(Bool, String) {
   let parameters =
     option.unwrap(parameters, model.new_botcommand_parameters())
     |> model.encode_botcommand_parameters
@@ -154,12 +113,11 @@ fn do_delete_my_commands(
   let body_json = json.object(parameters)
 
   new_post_request(
-    token: token,
+    token: ctx.bot.config.token,
     path: "deleteMyCommands",
     body: json.to_string(body_json),
     query: None,
   )
-  |> api_to_request
   |> fetch
   |> map_resonse(dynamic.bool)
 }
@@ -170,13 +128,6 @@ pub fn get_my_commands(
   ctx: Context,
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(List(BotCommand), String) {
-  do_get_my_commands(token: ctx.bot.config.token, parameters: parameters)
-}
-
-pub fn do_get_my_commands(
-  token token: String,
-  parameters parameters: Option(BotCommandParameters),
-) -> Result(List(BotCommand), String) {
   let parameters =
     option.unwrap(parameters, model.new_botcommand_parameters())
     |> model.encode_botcommand_parameters
@@ -184,12 +135,11 @@ pub fn do_get_my_commands(
   let body_json = json.object(parameters)
 
   new_post_request(
-    token: token,
+    token: ctx.bot.config.token,
     path: "getMyCommands",
     query: None,
     body: json.to_string(body_json),
   )
-  |> api_to_request
   |> fetch
   |> map_resonse(model.decode_bot_command)
 }
@@ -200,31 +150,29 @@ pub fn send_dice(
   ctx: Context,
   parameters parameters: Option(SendDiceParameters),
 ) -> Result(Message, String) {
-  do_send_dice(
-    token: ctx.bot.config.token,
-    chat_id: ctx.message.raw.chat.id,
-    parameters: parameters,
-  )
-}
-
-fn do_send_dice(
-  token token: String,
-  chat_id chat_id: Int,
-  parameters parameters: Option(SendDiceParameters),
-) -> Result(Message, String) {
   let parameters =
-    option.unwrap(parameters, model.new_send_dice_parameters(chat_id))
+    option.unwrap(
+      parameters,
+      model.new_send_dice_parameters(ctx.message.raw.chat.id),
+    )
   let body_json = model.encode_send_dice_parameters(parameters)
 
   new_post_request(
-    token: token,
+    token: ctx.bot.config.token,
     path: "sendDice",
     query: None,
     body: json.to_string(body_json),
   )
-  |> api_to_request
   |> fetch
   |> map_resonse(model.decode_message)
+}
+
+/// A simple method for testing your bot's authentication token.
+/// **Official reference:** https://core.telegram.org/bots/api#getme
+pub fn get_me(ctx: Context) -> Result(User, String) {
+  new_get_request(token: ctx.bot.config.token, path: "getMe", query: None)
+  |> fetch
+  |> map_resonse(model.decode_user)
 }
 
 fn new_post_request(
@@ -280,8 +228,8 @@ fn api_to_request(
   |> result.map_error(fn(_) { "Failed to convert API request to HTTP request" })
 }
 
-fn fetch(api_request: Result(Request(String), String)) {
-  use api_request <- result.try(api_request)
+fn fetch(api_request: TelegramApiRequest) {
+  use api_request <- result.try(api_to_request(api_request))
 
   httpc.send(api_request)
   |> result.map_error(fn(error) {

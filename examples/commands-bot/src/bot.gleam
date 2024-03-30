@@ -6,7 +6,7 @@ import gleam/bool
 import dotenv_gleam
 import mist
 import wisp.{type Request, type Response}
-import telega.{type Bot, type CommandContext, HandleCommand}
+import telega.{type Bot, type Context, HandleCommand}
 import telega/adapters/wisp as telega_wisp
 import telega/api as telega_api
 import telega/model as telega_model
@@ -34,23 +34,23 @@ fn handle_request(bot: Bot, req: Request) -> Response {
   }
 }
 
-fn dice_command_handler(command_ctx: CommandContext) -> Result(Nil, Nil) {
-  telega_api.send_dice(command_ctx.ctx, None)
+fn dice_command_handler(ctx: Context, _) -> Result(Nil, Nil) {
+  telega_api.send_dice(ctx, None)
   |> result.map(fn(_) { Nil })
   |> result.map_error(fn(e) { wisp.log_error("Failed to send dice: " <> e) })
   |> result.nil_error
 }
 
-fn start_command_handler(command_ctx: CommandContext) -> Result(Nil, Nil) {
+fn start_command_handler(ctx: Context, _) -> Result(Nil, Nil) {
   telega_api.set_my_commands(
-    command_ctx.ctx,
+    ctx,
     telega_model.bot_commands_from([#("/dice", "Roll a dice")]),
     None,
   )
   |> result.map_error(fn(e) { wisp.log_error("Failed to set commands: " <> e) })
   |> result.then(fn(_) {
     telega_api.reply(
-      command_ctx.ctx,
+      ctx,
       "Hello! I'm a dice bot. You can roll a dice by sending /dice command.",
     )
     |> result.map(fn(_) { Nil })

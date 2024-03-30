@@ -24,15 +24,15 @@ pub type Handler {
   /// Handle a specific command.
   HandleCommand(
     command: String,
-    handler: fn(CommandContext) -> Result(Nil, Nil),
+    handler: fn(Context, Command) -> Result(Nil, Nil),
   )
   /// Handle multiple commands.
   HandleCommands(
     commands: List(String),
-    handler: fn(CommandContext) -> Result(Nil, Nil),
+    handler: fn(Context, Command) -> Result(Nil, Nil),
   )
   /// Handle text messages.
-  HandleText(handler: fn(TextContext) -> Result(Nil, Nil))
+  HandleText(handler: fn(Context, String) -> Result(Nil, Nil))
 }
 
 /// Handlers context.
@@ -47,15 +47,6 @@ pub type Command {
     /// The command arguments, if any.
     payload: Option(String),
   )
-}
-
-/// Command handlers context.
-pub type CommandContext {
-  CommandContext(ctx: Context, command: Command)
-}
-
-pub type TextContext {
-  TextContext(ctx: Context, text: String)
 }
 
 /// Creates a new Bot with the given options.
@@ -126,30 +117,19 @@ fn do_handle_update(bot: Bot, message: Message, handlers: List(Handler)) -> Nil 
       let handle_result = case handler, message.kind {
         HandleAll(handle), _ -> handle(Context(bot: bot, message: message))
         HandleText(handle), TextMessage ->
-          handle(TextContext(
-            ctx: Context(bot: bot, message: message),
-            text: extract_text(message),
-          ))
+          handle(Context(bot: bot, message: message), extract_text(message))
 
         HandleCommand(command, handle), CommandMessage -> {
           let message_command = extract_command(message)
           case message_command.command == command {
-            True ->
-              handle(CommandContext(
-                ctx: Context(bot: bot, message: message),
-                command: message_command,
-              ))
+            True -> handle(Context(bot: bot, message: message), message_command)
             False -> Ok(Nil)
           }
         }
         HandleCommands(commands, handle), CommandMessage -> {
           let message_command = extract_command(message)
           case list.contains(commands, message_command.command) {
-            True ->
-              handle(CommandContext(
-                ctx: Context(bot: bot, message: message),
-                command: message_command,
-              ))
+            True -> handle(Context(bot: bot, message: message), message_command)
             False -> Ok(Nil)
           }
         }
