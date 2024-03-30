@@ -8,6 +8,7 @@ import mist
 import wisp.{type Request, type Response}
 import telega.{type Bot, type Context, HandleAll}
 import telega/adapters/wisp as telega_wisp
+import telega/api as telega_api
 
 fn middleware(
   req: Request,
@@ -35,7 +36,7 @@ fn handle_request(bot: Bot, req: Request) -> Response {
 fn echo_handler(ctx: Context) -> Result(Nil, Nil) {
   case ctx.message.raw.text {
     Some(text) ->
-      telega.reply(ctx, text)
+      telega_api.reply(ctx, text)
       |> result.map(fn(_) { Nil })
       |> result.nil_error
     None -> Error(Nil)
@@ -72,7 +73,7 @@ pub fn main() {
     |> result.nil_error,
   )
 
-  case telega.set_webhook(bot) {
+  case telega_api.set_webhook(bot) {
     Ok(_) -> wisp.log_info("Webhook set successfully")
     Error(e) -> wisp.log_error("Failed to set webhook: " <> e)
   }

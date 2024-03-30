@@ -1,14 +1,10 @@
 import gleam/option.{type Option, None, Some}
 import gleam/list
 import gleam/string
-import telega/api
 import telega/log
-import telega/models/message as raw_message
 import telega/message.{type Message, CommandMessage, TextMessage}
-import telega/models/bot_command.{type BotCommand, type BotCommandParameters}
-import telega/models/dice.{type SendDiceParameters}
 
-pub opaque type Config {
+pub type Config {
   Config(
     token: String,
     server_url: String,
@@ -91,69 +87,6 @@ pub fn is_secret_token_valid(bot: Bot, token: String) -> Bool {
     Some(secret) -> secret == token
     None -> True
   }
-}
-
-/// Set the webhook URL using [setWebhook](https://core.telegram.org/bots/api#setwebhook) API.
-pub fn set_webhook(bot: Bot) -> Result(Bool, String) {
-  let webhook_url = bot.config.server_url <> "/" <> bot.config.webhook_path
-  api.set_webhook(
-    webhook_url: webhook_url,
-    token: bot.config.token,
-    secret_token: bot.config.secret_token,
-  )
-}
-
-/// Use this method to send text messages.
-pub fn reply(
-  ctx ctx: Context,
-  text text: String,
-) -> Result(raw_message.Message, String) {
-  api.send_message(
-    token: ctx.bot.config.token,
-    chat_id: ctx.message.raw.chat.id,
-    text: text,
-  )
-}
-
-/// Use this method to change the list of the bot's commands. See [commands documentation](https://core.telegram.org/bots/features#commands) for more details about bot commands. Returns True on success.
-pub fn set_my_commands(
-  ctx ctx: Context,
-  commands commands: List(BotCommand),
-  parameters parameters: Option(BotCommandParameters),
-) -> Result(Bool, String) {
-  api.set_my_commands(
-    token: ctx.bot.config.token,
-    commands: commands,
-    parameters: parameters,
-  )
-}
-
-/// Use this method to get the current list of the bot's commands for the given scope and user language.
-pub fn get_my_commands(
-  ctx: Context,
-  parameters parameters: Option(BotCommandParameters),
-) -> Result(List(BotCommand), String) {
-  api.get_my_commands(token: ctx.bot.config.token, parameters: parameters)
-}
-
-/// Use this method to delete the list of the bot's commands for the given scope and user language. After deletion, [higher level commands](https://core.telegram.org/bots/api#determining-list-of-commands) will be shown to affected users.
-pub fn delete_my_commands(
-  ctx: Context,
-  parameters parameters: Option(BotCommandParameters),
-) -> Result(Bool, String) {
-  api.delete_my_commands(token: ctx.bot.config.token, parameters: parameters)
-}
-
-/// Use this method to send an animated emoji that will display a random value.
-pub fn send_dice(
-  ctx: Context,
-  parameters parameters: Option(SendDiceParameters),
-) -> Result(raw_message.Message, String) {
-  api.send_dice(
-    token: ctx.bot.config.token,
-    chat_id: ctx.message.raw.chat.id,
-    parameters: parameters,
-  )
 }
 
 /// Add a handler to the bot.

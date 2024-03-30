@@ -1,13 +1,14 @@
 import gleeunit
 import gleeunit/should
-import telega
-import telega/adapters/wisp as telega_wisp
 import gleam/http.{Post}
 import gleam/http/response.{type Response, Response}
 import gleam/option.{None}
 import wisp/testing
 import mockth
 import gleam/httpc
+import telega
+import telega/api
+import telega/adapters/wisp as telega_wisp
 
 pub fn main() {
   gleeunit.main()
@@ -44,6 +45,6 @@ pub fn set_webhook_test() {
   use <- with_mocked_httpc(Response(200, [], "{\"ok\": true, \"result\": true}"))
 
   create_new_bot()
-  |> telega.set_webhook()
+  |> api.set_webhook()
   |> should.equal(Ok(True))
 }

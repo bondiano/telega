@@ -8,7 +8,8 @@ import mist
 import wisp.{type Request, type Response}
 import telega.{type Bot, type CommandContext, HandleCommand}
 import telega/adapters/wisp as telega_wisp
-import telega/models/bot_command
+import telega/api as telega_api
+import telega/model as telega_model
 
 fn middleware(
   req: Request,
@@ -34,21 +35,21 @@ fn handle_request(bot: Bot, req: Request) -> Response {
 }
 
 fn dice_command_handler(command_ctx: CommandContext) -> Result(Nil, Nil) {
-  telega.send_dice(command_ctx.ctx, None)
+  telega_api.send_dice(command_ctx.ctx, None)
   |> result.map(fn(_) { Nil })
   |> result.map_error(fn(e) { wisp.log_error("Failed to send dice: " <> e) })
   |> result.nil_error
 }
 
 fn start_command_handler(command_ctx: CommandContext) -> Result(Nil, Nil) {
-  telega.set_my_commands(
+  telega_api.set_my_commands(
     command_ctx.ctx,
-    bot_command.from([#("/dice", "Roll a dice")]),
+    telega_model.bot_commands_from([#("/dice", "Roll a dice")]),
     None,
   )
   |> result.map_error(fn(e) { wisp.log_error("Failed to set commands: " <> e) })
   |> result.then(fn(_) {
-    telega.reply(
+    telega_api.reply(
       command_ctx.ctx,
       "Hello! I'm a dice bot. You can roll a dice by sending /dice command.",
     )
@@ -88,7 +89,7 @@ pub fn main() {
     |> result.nil_error,
   )
 
-  case telega.set_webhook(bot) {
+  case telega_api.set_webhook(bot) {
     Ok(_) -> wisp.log_info("Webhook set successfully")
     Error(e) -> wisp.log_error("Failed to set webhook: " <> e)
   }

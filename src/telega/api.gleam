@@ -6,9 +6,11 @@ import gleam/json
 import gleam/httpc
 import gleam/result
 import gleam/dynamic.{type DecodeError, type Dynamic}
-import telega/models/message.{type Message}
-import telega/models/bot_command.{type BotCommand, type BotCommandParameters}
-import telega/models/dice.{type SendDiceParameters}
+import telega.{type Bot, type Context}
+import telega/model.{
+  type BotCommand, type BotCommandParameters, type Message,
+  type SendDiceParameters,
+}
 
 const telegram_url = "https://api.telegram.org/bot"
 
@@ -25,9 +27,19 @@ pub type ApiResponse(result) {
   ApiResponse(ok: Bool, result: result)
 }
 
-// TODO: Support all options
+/// Set the webhook URL using [setWebhook](https://core.telegram.org/bots/api#setwebhook) API.
 /// **Official reference:** https://core.telegram.org/bots/api#setwebhook
-pub fn set_webhook(
+pub fn set_webhook(bot: Bot) -> Result(Bool, String) {
+  let webhook_url = bot.config.server_url <> "/" <> bot.config.webhook_path
+  do_set_webhook(
+    webhook_url: webhook_url,
+    token: bot.config.token,
+    secret_token: bot.config.secret_token,
+  )
+}
+
+// TODO: Support all options
+fn do_set_webhook(
   token token: String,
   webhook_url webhook_url: String,
   secret_token secret_token: Option(String),
@@ -44,9 +56,17 @@ pub fn set_webhook(
   |> map_resonse(dynamic.bool)
 }
 
+/// Use this method to send text messages.
+pub fn reply(ctx ctx: Context, text text: String) -> Result(Message, String) {
+  do_send_message(
+    token: ctx.bot.config.token,
+    chat_id: ctx.message.raw.chat.id,
+    text: text,
+  )
+}
+
 // TODO: Support all options
-/// **Official reference:** https://core.telegram.org/bots/api#sendmessage
-pub fn send_message(
+fn do_send_message(
   token token: String,
   chat_id chat_id: Int,
   text text: String,
@@ -63,18 +83,31 @@ pub fn send_message(
   )
   |> api_to_request
   |> fetch
-  |> map_resonse(message.decode)
+  |> map_resonse(model.decode_message)
 }
 
+/// Use this method to change the list of the bot's commands. See [commands documentation](https://core.telegram.org/bots/features#commands) for more details about bot commands. Returns True on success.
 /// **Official reference:** https://core.telegram.org/bots/api#setmycommands
 pub fn set_my_commands(
+  ctx ctx: Context,
+  commands commands: List(BotCommand),
+  parameters parameters: Option(BotCommandParameters),
+) -> Result(Bool, String) {
+  do_set_my_commands(
+    token: ctx.bot.config.token,
+    commands: commands,
+    parameters: parameters,
+  )
+}
+
+fn do_set_my_commands(
   token token: String,
   commands commands: List(BotCommand),
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(Bool, String) {
   let parameters =
-    option.unwrap(parameters, bot_command.new_botcommand_parameters())
-    |> bot_command.encode_botcommand_parameters
+    option.unwrap(parameters, model.new_botcommand_parameters())
+    |> model.encode_botcommand_parameters
 
   let body_json =
     json.object([
@@ -101,14 +134,22 @@ pub fn set_my_commands(
   |> map_resonse(dynamic.bool)
 }
 
+/// Use this method to delete the list of the bot's commands for the given scope and user language. After deletion, [higher level commands](https://core.telegram.org/bots/api#determining-list-of-commands) will be shown to affected users.
 /// **Official reference:** https://core.telegram.org/bots/api#deletemycommands
 pub fn delete_my_commands(
+  ctx: Context,
+  parameters parameters: Option(BotCommandParameters),
+) -> Result(Bool, String) {
+  do_delete_my_commands(token: ctx.bot.config.token, parameters: parameters)
+}
+
+fn do_delete_my_commands(
   token token: String,
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(Bool, String) {
   let parameters =
-    option.unwrap(parameters, bot_command.new_botcommand_parameters())
-    |> bot_command.encode_botcommand_parameters
+    option.unwrap(parameters, model.new_botcommand_parameters())
+    |> model.encode_botcommand_parameters
 
   let body_json = json.object(parameters)
 
@@ -123,14 +164,22 @@ pub fn delete_my_commands(
   |> map_resonse(dynamic.bool)
 }
 
+/// Use this method to get the current list of the bot's commands for the given scope and user language.
 /// **Official reference:** https://core.telegram.org/bots/api#getmycommands
 pub fn get_my_commands(
+  ctx: Context,
+  parameters parameters: Option(BotCommandParameters),
+) -> Result(List(BotCommand), String) {
+  do_get_my_commands(token: ctx.bot.config.token, parameters: parameters)
+}
+
+pub fn do_get_my_commands(
   token token: String,
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(List(BotCommand), String) {
   let parameters =
-    option.unwrap(parameters, bot_command.new_botcommand_parameters())
-    |> bot_command.encode_botcommand_parameters
+    option.unwrap(parameters, model.new_botcommand_parameters())
+    |> model.encode_botcommand_parameters
 
   let body_json = json.object(parameters)
 
@@ -142,18 +191,30 @@ pub fn get_my_commands(
   )
   |> api_to_request
   |> fetch
-  |> map_resonse(bot_command.decode)
+  |> map_resonse(model.decode_bot_command)
 }
 
+/// Use this method to send an animated emoji that will display a random value.
 /// **Official reference:** https://core.telegram.org/bots/api#senddice
 pub fn send_dice(
+  ctx: Context,
+  parameters parameters: Option(SendDiceParameters),
+) -> Result(Message, String) {
+  do_send_dice(
+    token: ctx.bot.config.token,
+    chat_id: ctx.message.raw.chat.id,
+    parameters: parameters,
+  )
+}
+
+fn do_send_dice(
   token token: String,
   chat_id chat_id: Int,
   parameters parameters: Option(SendDiceParameters),
 ) -> Result(Message, String) {
   let parameters =
-    option.unwrap(parameters, dice.new_send_dice_parameters(chat_id))
-  let body_json = dice.encode_send_dice_parameters(parameters)
+    option.unwrap(parameters, model.new_send_dice_parameters(chat_id))
+  let body_json = model.encode_send_dice_parameters(parameters)
 
   new_post_request(
     token: token,
@@ -163,7 +224,7 @@ pub fn send_dice(
   )
   |> api_to_request
   |> fetch
-  |> map_resonse(message.decode)
+  |> map_resonse(model.decode_message)
 }
 
 fn new_post_request(
