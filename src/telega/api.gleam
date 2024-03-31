@@ -32,11 +32,10 @@ type ApiResponse(result) {
 /// **Official reference:** https://core.telegram.org/bots/api#setwebhook
 pub fn set_webhook(bot: Bot) -> Result(Bool, String) {
   let webhook_url = bot.config.server_url <> "/" <> bot.config.webhook_path
-  let query = [#("url", webhook_url)]
-  let query = case bot.config.secret_token {
-    None -> query
-    Some(secret_token) -> [#("secret_token", secret_token), ..query]
-  }
+  let query = [
+    #("url", webhook_url),
+    #("secret_token", bot.config.secret_token),
+  ]
 
   new_get_request(
     token: bot.config.token,

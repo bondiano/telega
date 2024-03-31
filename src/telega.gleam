@@ -1,6 +1,8 @@
-import gleam/option.{type Option, None, Some}
 import gleam/list
 import gleam/string
+import gleam/result
+import gleam/int
+import gleam/option.{type Option, None, Some}
 import telega/log
 import telega/message.{type Message, CommandMessage, TextMessage}
 
@@ -9,8 +11,8 @@ pub type Config {
     token: String,
     server_url: String,
     webhook_path: String,
-    /// An optional string to compare to X-Telegram-Bot-Api-Secret-Token
-    secret_token: Option(String),
+    /// String to compare to X-Telegram-Bot-Api-Secret-Token
+    secret_token: String,
   )
 }
 
@@ -50,12 +52,20 @@ pub type Command {
 }
 
 /// Creates a new Bot with the given options.
+///
+/// If `secret_token` is not provided, a random one will be generated.
 pub fn new(
   token token: String,
   url server_url: String,
   webhook_path webhook_path: String,
   secret_token secret_token: Option(String),
 ) -> Bot {
+  let secret_token =
+    option.lazy_unwrap(secret_token, fn() {
+      int.random(1_000_000)
+      |> int.to_string
+    })
+
   Bot(
     handlers: [],
     config: Config(
@@ -72,14 +82,6 @@ pub fn is_webhook_path(bot: Bot, path: String) -> Bool {
   bot.config.webhook_path == path
 }
 
-/// Check if a token is the secret token for the bot.
-pub fn is_secret_token_valid(bot: Bot, token: String) -> Bool {
-  case bot.config.secret_token {
-    Some(secret) -> secret == token
-    None -> True
-  }
-}
-
 /// Add a handler to the bot.
 pub fn add_handler(bot: Bot, handler: Handler) -> Bot {
   Bot(..bot, handlers: [handler, ..bot.handlers])
@@ -88,6 +90,22 @@ pub fn add_handler(bot: Bot, handler: Handler) -> Bot {
 /// Handle an update from the Telegram API.
 pub fn handle_update(bot: Bot, message: Message) -> Nil {
   do_handle_update(bot, message, bot.handlers)
+}
+
+/// Log the message and error message if the handler fails.
+pub fn log_context(
+  ctx: Context,
+  prefix: String,
+  handler: fn() -> Result(Nil, String),
+) -> Result(Nil, Nil) {
+  let prefix = "[" <> prefix <> "] "
+
+  log.info(prefix <> "Received message: " <> string.inspect(ctx.message.raw))
+
+  handler()
+  |> result.map_error(fn(e) {
+    log.error(prefix <> "failed: " <> string.inspect(e))
+  })
 }
 
 fn extract_command(message: Message) -> Command {

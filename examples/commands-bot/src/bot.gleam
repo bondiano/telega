@@ -2,7 +2,6 @@ import gleam/erlang/process
 import gleam/result.{try}
 import gleam/option.{None, Some}
 import gleam/erlang/os
-import gleam/bool
 import dotenv_gleam
 import mist
 import wisp.{type Request, type Response}
@@ -13,20 +12,19 @@ import telega/model as telega_model
 
 fn middleware(
   req: Request,
-  handle_request: fn(wisp.Request) -> Response,
+  bot: Bot,
+  handle_request: fn(Request) -> Response,
 ) -> Response {
   let req = wisp.method_override(req)
   use <- wisp.log_request(req)
   use <- wisp.rescue_crashes
+  use <- telega_wisp.handle_bot(req, bot)
   use req <- wisp.handle_head(req)
   handle_request(req)
 }
 
 fn handle_request(bot: Bot, req: Request) -> Response {
-  use req <- middleware(req)
-  use <- bool.lazy_guard(telega_wisp.is_bot_request(bot, req), fn() {
-    telega_wisp.bot_handler(bot, req)
-  })
+  use req <- middleware(req, bot)
 
   case wisp.path_segments(req) {
     ["helath"] -> wisp.ok()
@@ -35,26 +33,26 @@ fn handle_request(bot: Bot, req: Request) -> Response {
 }
 
 fn dice_command_handler(ctx: Context, _) -> Result(Nil, Nil) {
+  use <- telega.log_context(ctx, "dice")
+
   telega_api.send_dice(ctx, None)
   |> result.map(fn(_) { Nil })
-  |> result.map_error(fn(e) { wisp.log_error("Failed to send dice: " <> e) })
-  |> result.nil_error
 }
 
 fn start_command_handler(ctx: Context, _) -> Result(Nil, Nil) {
+  use <- telega.log_context(ctx, "start")
+
   telega_api.set_my_commands(
     ctx,
     telega_model.bot_commands_from([#("/dice", "Roll a dice")]),
     None,
   )
-  |> result.map_error(fn(e) { wisp.log_error("Failed to set commands: " <> e) })
   |> result.then(fn(_) {
     telega_api.reply(
       ctx,
       "Hello! I'm a dice bot. You can roll a dice by sending /dice command.",
     )
     |> result.map(fn(_) { Nil })
-    |> result.nil_error
   })
 }
 

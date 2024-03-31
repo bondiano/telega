@@ -1,0 +1,14 @@
+name = "bot"
+version = "1.0.0"
+description = "A Telega Echo Bot example"
+
+[dependencies]
+gleam_stdlib = "~> 0.34 or ~> 1.0"
+mist = "~> 0.17"
+gleam_erlang = "~> 0.25"
+wisp = "~> 0.12"
+dotenv_gleam = "~> 1.0"
+telega = { path = "../.." }
+
+[dev-dependencies]
+gleeunit = "~> 1.0"

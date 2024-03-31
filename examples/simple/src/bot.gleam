@@ -1,26 +1,3 @@
-# telega
-
-[![Package Version](https://img.shields.io/hexpm/v/telega)](https://hex.pm/packages/telega)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/telega/)
-
-A [Gleam](https://gleam.run/) library for the Telegram Bot API.
-
-## It provides:
-
-- an inteface to the Telegram Bot HTTP-based APIs `telega/api`
-- adapter to use with [wisp](https://github.com/gleam-wisp/wisp)
-
-## Installation
-
-```sh
-gleam add telega
-```
-
-## Simple usage
-
-To start using the library you need to install [wisp](https://github.com/gleam-wisp/wisp) and use the `telega` adapter middleware.
-
-```gleam
 import gleam/erlang/process
 import gleam/result
 import gleam/option.{None, Some}
@@ -68,14 +45,3 @@ pub fn main() {
 
   process.sleep_forever()
 }
-```
-
-Other examples can be found in the [example](./example) directory.
-
-## Development
-
-```sh
-gleam run   # Run the project
-gleam test  # Run the tests
-gleam shell # Run an Erlang shell
-```

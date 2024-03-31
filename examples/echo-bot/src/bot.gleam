@@ -2,7 +2,6 @@ import gleam/erlang/process
 import gleam/result.{try}
 import gleam/option.{None, Some}
 import gleam/erlang/os
-import gleam/bool
 import dotenv_gleam
 import mist
 import wisp.{type Request, type Response}
@@ -12,20 +11,19 @@ import telega/api as telega_api
 
 fn middleware(
   req: Request,
-  handle_request: fn(wisp.Request) -> Response,
+  bot: Bot,
+  handle_request: fn(Request) -> Response,
 ) -> Response {
   let req = wisp.method_override(req)
   use <- wisp.log_request(req)
   use <- wisp.rescue_crashes
+  use <- telega_wisp.handle_bot(req, bot)
   use req <- wisp.handle_head(req)
   handle_request(req)
 }
 
 fn handle_request(bot: Bot, req: Request) -> Response {
-  use req <- middleware(req)
-  use <- bool.lazy_guard(telega_wisp.is_bot_request(bot, req), fn() {
-    telega_wisp.bot_handler(bot, req)
-  })
+  use req <- middleware(req, bot)
 
   case wisp.path_segments(req) {
     ["helath"] -> wisp.ok()
@@ -33,13 +31,14 @@ fn handle_request(bot: Bot, req: Request) -> Response {
   }
 }
 
-fn echo_handler(ctx: Context) -> Result(Nil, Nil) {
+fn echo_handler(ctx: Context) {
+  use <- telega.log_context(ctx, "echo")
+
   case ctx.message.raw.text {
     Some(text) ->
       telega_api.reply(ctx, text)
       |> result.map(fn(_) { Nil })
-      |> result.nil_error
-    None -> Error(Nil)
+    None -> Error("No text in message")
   }
 }
 
