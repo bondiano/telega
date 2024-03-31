@@ -76,6 +76,28 @@ pub fn delete_webhook_and_drop_updates(bot: Bot) -> Result(Bool, String) {
   |> map_resonse(dynamic.bool)
 }
 
+/// Use this method to log out from the cloud Bot API server before launching the bot locally.
+/// You **must** log out the bot before running it locally, otherwise there is no guarantee that the bot will receive updates.
+/// After a successful call, you can immediately log in on a local server, but will not be able to log in back to the cloud Bot API server for 10 minutes.
+///
+/// **Official reference:** https://core.telegram.org/bots/api#logout
+pub fn log_out(bot: Bot) -> Result(Bool, String) {
+  new_get_request(token: bot.config.token, path: "logOut", query: None)
+  |> fetch
+  |> map_resonse(dynamic.bool)
+}
+
+/// Use this method to close the bot instance before moving it from one local server to another.
+/// You need to delete the webhook before calling this method to ensure that the bot isn't launched again after server restart.
+/// The method will return error 429 in the first 10 minutes after the bot is launched.
+///
+/// **Official reference:** https://core.telegram.org/bots/api#close
+pub fn close(bot: Bot) -> Result(Bool, String) {
+  new_get_request(token: bot.config.token, path: "close", query: None)
+  |> fetch
+  |> map_resonse(dynamic.bool)
+}
+
 // TODO: Support all options from the official reference.
 /// Use this method to send text messages.
 ///
