@@ -1,9 +1,14 @@
 name = "telega"
-version = "0.0.4"
+version = "0.0.5"
 description = "Gleam Telegram Bot Library"
 licences = ["Apache-2.0"]
 repository = { type = "github", user = "bondiano", repo = "telega" }
-gleam = ">= 0.32.0"
+links = [
+    { title = "Issues", href = "https://github.com/bondiano/telega/issues" },
+]
+
+gleam = ">= 1.0.0"
+target = "erlang"
 
 [dependencies]
 gleam_stdlib = "~> 0.34 or ~> 1.0"

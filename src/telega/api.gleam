@@ -9,7 +9,7 @@ import gleam/dynamic.{type DecodeError, type Dynamic}
 import telega.{type Bot, type Context}
 import telega/model.{
   type BotCommand, type BotCommandParameters, type Message,
-  type SendDiceParameters, type User,
+  type SendDiceParameters, type User, type WebhookInfo,
 }
 
 const telegram_url = "https://api.telegram.org/bot"
@@ -29,6 +29,7 @@ type ApiResponse(result) {
 
 // TODO: Support all options from the official reference.
 /// Set the webhook URL using [setWebhook](https://core.telegram.org/bots/api#setwebhook) API.
+///
 /// **Official reference:** https://core.telegram.org/bots/api#setwebhook
 pub fn set_webhook(bot: Bot) -> Result(Bool, String) {
   let webhook_url = bot.config.server_url <> "/" <> bot.config.webhook_path
@@ -46,8 +47,38 @@ pub fn set_webhook(bot: Bot) -> Result(Bool, String) {
   |> map_resonse(dynamic.bool)
 }
 
+/// Use this method to get current webhook status.
+///
+/// **Official reference:** https://core.telegram.org/bots/api#getwebhookinfo
+pub fn get_webhook_info(bot: Bot) -> Result(WebhookInfo, String) {
+  new_get_request(token: bot.config.token, path: "getWebhookInfo", query: None)
+  |> fetch
+  |> map_resonse(model.decode_webhook_info)
+}
+
+/// Use this method to remove webhook integration if you decide to switch back to [getUpdates](https://core.telegram.org/bots/api#getupdates).
+///
+/// **Official reference:** https://core.telegram.org/bots/api#deletewebhook
+pub fn delete_webhook(bot: Bot) -> Result(Bool, String) {
+  new_get_request(token: bot.config.token, path: "deleteWebhook", query: None)
+  |> fetch
+  |> map_resonse(dynamic.bool)
+}
+
+/// The same as [delete_webhook](#delete_webhook) but also drops all pending updates.
+pub fn delete_webhook_and_drop_updates(bot: Bot) -> Result(Bool, String) {
+  new_get_request(
+    token: bot.config.token,
+    path: "deleteWebhook",
+    query: Some([#("drop_pending_updates", "true")]),
+  )
+  |> fetch
+  |> map_resonse(dynamic.bool)
+}
+
 // TODO: Support all options from the official reference.
 /// Use this method to send text messages.
+///
 /// **Official reference:** https://core.telegram.org/bots/api#sendmessage
 pub fn reply(ctx ctx: Context, text text: String) -> Result(Message, String) {
   new_post_request(
@@ -64,7 +95,8 @@ pub fn reply(ctx ctx: Context, text text: String) -> Result(Message, String) {
   |> map_resonse(model.decode_message)
 }
 
-/// Use this method to change the list of the bot's commands. See [commands documentation](https://core.telegram.org/bots/features#commands) for more details about bot commands. Returns True on success.
+/// Use this method to change the list of the bot's commands. See [commands documentation](https://core.telegram.org/bots/features#commands) for more details about bot commands.
+///
 /// **Official reference:** https://core.telegram.org/bots/api#setmycommands
 pub fn set_my_commands(
   ctx ctx: Context,
@@ -99,7 +131,9 @@ pub fn set_my_commands(
   |> map_resonse(dynamic.bool)
 }
 
-/// Use this method to delete the list of the bot's commands for the given scope and user language. After deletion, [higher level commands](https://core.telegram.org/bots/api#determining-list-of-commands) will be shown to affected users.
+/// Use this method to delete the list of the bot's commands for the given scope and user language.
+/// After deletion, [higher level commands](https://core.telegram.org/bots/api#determining-list-of-commands) will be shown to affected users.
+///
 /// **Official reference:** https://core.telegram.org/bots/api#deletemycommands
 pub fn delete_my_commands(
   ctx: Context,
@@ -122,6 +156,7 @@ pub fn delete_my_commands(
 }
 
 /// Use this method to get the current list of the bot's commands for the given scope and user language.
+///
 /// **Official reference:** https://core.telegram.org/bots/api#getmycommands
 pub fn get_my_commands(
   ctx: Context,
@@ -144,17 +179,18 @@ pub fn get_my_commands(
 }
 
 /// Use this method to send an animated emoji that will display a random value.
+///
 /// **Official reference:** https://core.telegram.org/bots/api#senddice
 pub fn send_dice(
   ctx: Context,
   parameters parameters: Option(SendDiceParameters),
 ) -> Result(Message, String) {
-  let parameters =
-    option.unwrap(
-      parameters,
-      model.new_send_dice_parameters(ctx.message.raw.chat.id),
-    )
-  let body_json = model.encode_send_dice_parameters(parameters)
+  let body_json =
+    parameters
+    |> option.lazy_unwrap(fn() {
+      model.new_send_dice_parameters(ctx.message.raw.chat.id)
+    })
+    |> model.encode_send_dice_parameters
 
   new_post_request(
     token: ctx.bot.config.token,
@@ -167,6 +203,7 @@ pub fn send_dice(
 }
 
 /// A simple method for testing your bot's authentication token.
+///
 /// **Official reference:** https://core.telegram.org/bots/api#getme
 pub fn get_me(ctx: Context) -> Result(User, String) {
   new_get_request(token: ctx.bot.config.token, path: "getMe", query: None)

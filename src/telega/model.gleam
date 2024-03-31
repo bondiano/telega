@@ -851,6 +851,52 @@ pub fn encode_send_dice_parameters(params: SendDiceParameters) -> Json {
   |> json.object
 }
 
+// WebhookInfo --------------------------------------------------------------------------------------------------------
+
+pub type WebhookInfo {
+  /// Describes the current status of a webhook.
+  ///
+  /// **Official reference:** [WebhookInfo](https://core.telegram.org/bots/api#webhookinfo)
+  WebhookInfo(
+    /// Webhook URL, may be empty if webhook is not set up
+    url: String,
+    /// _True_, if a custom certificate was provided for webhook certificate checks
+    has_custom_certificate: Bool,
+    /// Number of updates awaiting delivery
+    pending_update_count: Int,
+    /// Currently used webhook IP address
+    ip_address: Option(String),
+    /// Unix time for the most recent error that happened when trying to deliver an update via webhook
+    last_error_date: Option(Int),
+    /// Error message in human-readable format for the most recent error that happened when trying to deliver an update via webhook
+    last_error_message: Option(String),
+    /// Maximum allowed payload size for incoming update
+    last_synchronization_error_date: Option(Int),
+    /// Maximum allowed number of simultaneous HTTPS connections to the webhook for update delivery
+    max_connections: Option(Int),
+    /// A list of update types the bot is subscribed to. Defaults to all update types
+    allowed_updates: Option(List(String)),
+  )
+}
+
+pub fn decode_webhook_info(
+  json: Dynamic,
+) -> Result(WebhookInfo, dynamic.DecodeErrors) {
+  json
+  |> dynamic.decode9(
+    WebhookInfo,
+    dynamic.field("url", dynamic.string),
+    dynamic.field("has_custom_certificate", dynamic.bool),
+    dynamic.field("pending_update_count", dynamic.int),
+    dynamic.optional_field("ip_address", dynamic.string),
+    dynamic.optional_field("last_error_date", dynamic.int),
+    dynamic.optional_field("last_error_message", dynamic.string),
+    dynamic.optional_field("last_synchronization_error_date", dynamic.int),
+    dynamic.optional_field("max_connections", dynamic.int),
+    dynamic.optional_field("allowed_updates", dynamic.list(dynamic.string)),
+  )
+}
+
 // Common ------------------------------------------------------------------------------------------------------------
 
 pub type IntOrString {
