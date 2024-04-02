@@ -15,6 +15,9 @@ pub type Config {
     secret_token: String,
     /// The maximum number of times to retry sending a API message. Default is 3.
     max_retry_attempts: Option(Int),
+    /// The Telegram Bot API URL. Default is "https://api.telegram.org".
+    /// This is useful for running [a local server](https://core.telegram.org/bots/api#using-a-local-bot-api-server).
+    tg_api_url: Option(String),
   )
 }
 
@@ -76,6 +79,7 @@ pub fn new(
       webhook_path: webhook_path,
       secret_token: secret_token,
       max_retry_attempts: None,
+      tg_api_url: None,
     ),
   )
 }

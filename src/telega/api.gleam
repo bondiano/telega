@@ -45,11 +45,7 @@ pub fn set_webhook(bot: Bot) -> Result(Bool, String) {
     #("secret_token", bot.config.secret_token),
   ]
 
-  new_get_request(
-    token: bot.config.token,
-    path: "setWebhook",
-    query: Some(query),
-  )
+  new_get_request(bot, path: "setWebhook", query: Some(query))
   |> fetch(bot)
   |> map_resonse(dynamic.bool)
 }
@@ -58,7 +54,7 @@ pub fn set_webhook(bot: Bot) -> Result(Bool, String) {
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#getwebhookinfo
 pub fn get_webhook_info(bot: Bot) -> Result(WebhookInfo, String) {
-  new_get_request(token: bot.config.token, path: "getWebhookInfo", query: None)
+  new_get_request(bot, path: "getWebhookInfo", query: None)
   |> fetch(bot)
   |> map_resonse(model.decode_webhook_info)
 }
@@ -67,7 +63,7 @@ pub fn get_webhook_info(bot: Bot) -> Result(WebhookInfo, String) {
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#deletewebhook
 pub fn delete_webhook(bot: Bot) -> Result(Bool, String) {
-  new_get_request(token: bot.config.token, path: "deleteWebhook", query: None)
+  new_get_request(bot, path: "deleteWebhook", query: None)
   |> fetch(bot)
   |> map_resonse(dynamic.bool)
 }
@@ -75,7 +71,7 @@ pub fn delete_webhook(bot: Bot) -> Result(Bool, String) {
 /// The same as [delete_webhook](#delete_webhook) but also drops all pending updates.
 pub fn delete_webhook_and_drop_updates(bot: Bot) -> Result(Bool, String) {
   new_get_request(
-    token: bot.config.token,
+    bot,
     path: "deleteWebhook",
     query: Some([#("drop_pending_updates", "true")]),
   )
@@ -89,7 +85,7 @@ pub fn delete_webhook_and_drop_updates(bot: Bot) -> Result(Bool, String) {
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#logout
 pub fn log_out(bot: Bot) -> Result(Bool, String) {
-  new_get_request(token: bot.config.token, path: "logOut", query: None)
+  new_get_request(bot, path: "logOut", query: None)
   |> fetch(bot)
   |> map_resonse(dynamic.bool)
 }
@@ -100,7 +96,7 @@ pub fn log_out(bot: Bot) -> Result(Bool, String) {
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#close
 pub fn close(bot: Bot) -> Result(Bool, String) {
-  new_get_request(token: bot.config.token, path: "close", query: None)
+  new_get_request(bot, path: "close", query: None)
   |> fetch(bot)
   |> map_resonse(dynamic.bool)
 }
@@ -111,7 +107,7 @@ pub fn close(bot: Bot) -> Result(Bool, String) {
 /// **Official reference:** https://core.telegram.org/bots/api#sendmessage
 pub fn reply(ctx ctx: Context, text text: String) -> Result(Message, String) {
   new_post_request(
-    token: ctx.bot.config.token,
+    ctx.bot,
     path: "sendMessage",
     body: json.object([
         #("chat_id", json.int(ctx.message.raw.chat.id)),
@@ -151,7 +147,7 @@ pub fn set_my_commands(
     ])
 
   new_post_request(
-    token: ctx.bot.config.token,
+    ctx.bot,
     path: "setMyCommands",
     body: json.to_string(body_json),
     query: None,
@@ -175,7 +171,7 @@ pub fn delete_my_commands(
   let body_json = json.object(parameters)
 
   new_post_request(
-    token: ctx.bot.config.token,
+    ctx.bot,
     path: "deleteMyCommands",
     body: json.to_string(body_json),
     query: None,
@@ -198,7 +194,7 @@ pub fn get_my_commands(
   let body_json = json.object(parameters)
 
   new_post_request(
-    token: ctx.bot.config.token,
+    ctx.bot,
     path: "getMyCommands",
     query: None,
     body: json.to_string(body_json),
@@ -222,7 +218,7 @@ pub fn send_dice(
     |> model.encode_send_dice_parameters
 
   new_post_request(
-    token: ctx.bot.config.token,
+    bot: ctx.bot,
     path: "sendDice",
     query: None,
     body: json.to_string(body_json),
@@ -235,30 +231,31 @@ pub fn send_dice(
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#getme
 pub fn get_me(ctx: Context) -> Result(User, String) {
-  new_get_request(token: ctx.bot.config.token, path: "getMe", query: None)
+  new_get_request(ctx.bot, path: "getMe", query: None)
   |> fetch(ctx.bot)
   |> map_resonse(model.decode_user)
 }
 
+fn build_url(bot: Bot, path: String) -> String {
+  let url = option.unwrap(bot.config.tg_api_url, telegram_url)
+  url <> bot.config.token <> "/" <> path
+}
+
 fn new_post_request(
-  token token: String,
+  bot bot: Bot,
   path path: String,
   body body: String,
   query query: Option(List(#(String, String))),
 ) {
-  let url = telegram_url <> token <> "/" <> path
-
-  TelegramApiPostRequest(url: url, body: body, query: query)
+  TelegramApiPostRequest(url: build_url(bot, path), body: body, query: query)
 }
 
 fn new_get_request(
-  token token: String,
+  bot bot: Bot,
   path path: String,
   query query: Option(List(#(String, String))),
 ) {
-  let url = telegram_url <> token <> "/" <> path
-
-  TelegramApiGetRequest(url: url, query: query)
+  TelegramApiGetRequest(url: build_url(bot, path), query: query)
 }
 
 fn set_query(
