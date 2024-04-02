@@ -13,6 +13,8 @@ pub type Config {
     webhook_path: String,
     /// String to compare to X-Telegram-Bot-Api-Secret-Token
     secret_token: String,
+    /// The maximum number of times to retry sending a API message. Default is 3.
+    max_retry_attempts: Option(Int),
   )
 }
 
@@ -73,6 +75,7 @@ pub fn new(
       server_url: server_url,
       webhook_path: webhook_path,
       secret_token: secret_token,
+      max_retry_attempts: None,
     ),
   )
 }

@@ -25,17 +25,17 @@ import gleam/erlang/process
 import gleam/result
 import gleam/option.{None, Some}
 import mist
-import wisp.{type Request, type Response}
-import telega.{type Bot, type Context, HandleAll}
+import wisp
+import telega.{HandleAll}
 import telega/adapters/wisp as telega_wisp
 import telega/api as telega_api
 
-fn handle_request(bot: Bot, req: Request) -> Response {
+fn handle_request(bot, req) {
   use <- telega_wisp.handle_bot(req, bot)
   wisp.not_found()
 }
 
-fn echo_handler(ctx: Context) {
+fn echo_handler(ctx) {
   use <- telega.log_context(ctx, "echo")
 
   case ctx.message.raw.text {

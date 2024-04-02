@@ -1,18 +1,25 @@
+import gleam/json
+import gleam/httpc
+import gleam/result
+import gleam/string
+import gleam/erlang/process
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response, Response}
 import gleam/http.{Get, Post}
 import gleam/option.{type Option, None, Some}
-import gleam/json
-import gleam/httpc
-import gleam/result
 import gleam/dynamic.{type DecodeError, type Dynamic}
 import telega.{type Bot, type Context}
 import telega/model.{
   type BotCommand, type BotCommandParameters, type Message,
   type SendDiceParameters, type User, type WebhookInfo,
 }
+import telega/log
 
 const telegram_url = "https://api.telegram.org/bot"
+
+const default_retry_count = 5
+
+const default_retry_delay = 1000
 
 type TelegramApiRequest {
   TelegramApiPostRequest(
@@ -43,7 +50,7 @@ pub fn set_webhook(bot: Bot) -> Result(Bool, String) {
     path: "setWebhook",
     query: Some(query),
   )
-  |> fetch
+  |> fetch(bot)
   |> map_resonse(dynamic.bool)
 }
 
@@ -52,7 +59,7 @@ pub fn set_webhook(bot: Bot) -> Result(Bool, String) {
 /// **Official reference:** https://core.telegram.org/bots/api#getwebhookinfo
 pub fn get_webhook_info(bot: Bot) -> Result(WebhookInfo, String) {
   new_get_request(token: bot.config.token, path: "getWebhookInfo", query: None)
-  |> fetch
+  |> fetch(bot)
   |> map_resonse(model.decode_webhook_info)
 }
 
@@ -61,7 +68,7 @@ pub fn get_webhook_info(bot: Bot) -> Result(WebhookInfo, String) {
 /// **Official reference:** https://core.telegram.org/bots/api#deletewebhook
 pub fn delete_webhook(bot: Bot) -> Result(Bool, String) {
   new_get_request(token: bot.config.token, path: "deleteWebhook", query: None)
-  |> fetch
+  |> fetch(bot)
   |> map_resonse(dynamic.bool)
 }
 
@@ -72,7 +79,7 @@ pub fn delete_webhook_and_drop_updates(bot: Bot) -> Result(Bool, String) {
     path: "deleteWebhook",
     query: Some([#("drop_pending_updates", "true")]),
   )
-  |> fetch
+  |> fetch(bot)
   |> map_resonse(dynamic.bool)
 }
 
@@ -83,7 +90,7 @@ pub fn delete_webhook_and_drop_updates(bot: Bot) -> Result(Bool, String) {
 /// **Official reference:** https://core.telegram.org/bots/api#logout
 pub fn log_out(bot: Bot) -> Result(Bool, String) {
   new_get_request(token: bot.config.token, path: "logOut", query: None)
-  |> fetch
+  |> fetch(bot)
   |> map_resonse(dynamic.bool)
 }
 
@@ -94,7 +101,7 @@ pub fn log_out(bot: Bot) -> Result(Bool, String) {
 /// **Official reference:** https://core.telegram.org/bots/api#close
 pub fn close(bot: Bot) -> Result(Bool, String) {
   new_get_request(token: bot.config.token, path: "close", query: None)
-  |> fetch
+  |> fetch(bot)
   |> map_resonse(dynamic.bool)
 }
 
@@ -113,7 +120,7 @@ pub fn reply(ctx ctx: Context, text text: String) -> Result(Message, String) {
       |> json.to_string,
     query: None,
   )
-  |> fetch
+  |> fetch(ctx.bot)
   |> map_resonse(model.decode_message)
 }
 
@@ -149,7 +156,7 @@ pub fn set_my_commands(
     body: json.to_string(body_json),
     query: None,
   )
-  |> fetch
+  |> fetch(ctx.bot)
   |> map_resonse(dynamic.bool)
 }
 
@@ -173,7 +180,7 @@ pub fn delete_my_commands(
     body: json.to_string(body_json),
     query: None,
   )
-  |> fetch
+  |> fetch(ctx.bot)
   |> map_resonse(dynamic.bool)
 }
 
@@ -196,7 +203,7 @@ pub fn get_my_commands(
     query: None,
     body: json.to_string(body_json),
   )
-  |> fetch
+  |> fetch(ctx.bot)
   |> map_resonse(model.decode_bot_command)
 }
 
@@ -220,7 +227,7 @@ pub fn send_dice(
     query: None,
     body: json.to_string(body_json),
   )
-  |> fetch
+  |> fetch(ctx.bot)
   |> map_resonse(model.decode_message)
 }
 
@@ -229,7 +236,7 @@ pub fn send_dice(
 /// **Official reference:** https://core.telegram.org/bots/api#getme
 pub fn get_me(ctx: Context) -> Result(User, String) {
   new_get_request(token: ctx.bot.config.token, path: "getMe", query: None)
-  |> fetch
+  |> fetch(ctx.bot)
   |> map_resonse(model.decode_user)
 }
 
@@ -286,14 +293,50 @@ fn api_to_request(
   |> result.map_error(fn(_) { "Failed to convert API request to HTTP request" })
 }
 
-fn fetch(api_request: TelegramApiRequest) {
+fn fetch(
+  api_request: TelegramApiRequest,
+  bot: Bot,
+) -> Result(Response(String), String) {
   use api_request <- result.try(api_to_request(api_request))
+  let retry_count =
+    option.unwrap(bot.config.max_retry_attempts, default_retry_count)
 
-  httpc.send(api_request)
+  send_with_retry(api_request, retry_count)
   |> result.map_error(fn(error) {
+    log.info("Api request failed with error:" <> string.inspect(error))
+
     dynamic.string(error)
     |> result.unwrap("Failed to send request")
   })
+}
+
+fn send_with_retry(
+  api_request: Request(String),
+  retries: Int,
+) -> Result(Response(String), Dynamic) {
+  let response = httpc.send(api_request)
+
+  case retries {
+    0 -> response
+    _ -> {
+      case response {
+        Ok(response) -> {
+          case response.status {
+            429 -> {
+              log.warn("Telegram API throttling, HTTP 429 'Too Many Requests'")
+              process.sleep(default_retry_delay)
+              send_with_retry(api_request, retries - 1)
+            }
+            _ -> Ok(response)
+          }
+        }
+        Error(_) -> {
+          process.sleep(default_retry_delay)
+          send_with_retry(api_request, retries - 1)
+        }
+      }
+    }
+  }
 }
 
 fn map_resonse(

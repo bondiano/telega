@@ -1,5 +1,5 @@
 import gleam/string
-import logging.{Debug, Error, Info}
+import logging.{Debug, Error, Info, Warning}
 
 pub fn error(message: String) -> Nil {
   logging.log(Error, message)
@@ -15,4 +15,8 @@ pub fn info_d(message: anything) -> Nil {
 
 pub fn info(message: String) -> Nil {
   logging.log(Info, message)
+}
+
+pub fn warn(message: String) -> Nil {
+  logging.log(Warning, message)
 }
