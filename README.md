@@ -70,7 +70,7 @@ pub fn main() {
 }
 ```
 
-Other examples can be found in the [example](./example) directory.
+Other examples can be found in the [examples](./examples) directory.
 
 ## Development
 
