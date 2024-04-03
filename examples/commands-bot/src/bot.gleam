@@ -5,7 +5,8 @@ import gleam/erlang/os
 import dotenv_gleam
 import mist
 import wisp.{type Request, type Response}
-import telega.{type Bot, type Context, HandleCommand}
+import telega
+import telega/bot.{type Bot, type Context, HandleCommand}
 import telega/adapters/wisp as telega_wisp
 import telega/api as telega_api
 import telega/model as telega_model
@@ -62,14 +63,14 @@ fn build_bot() -> Result(Bot, Nil) {
   use server_url <- try(os.get_env("SERVER_URL"))
   use secret_token <- try(os.get_env("BOT_SECRET_TOKEN"))
 
-  telega.new(
+  bot.new(
     token: bot_token,
     url: server_url,
     webhook_path: webhook_path,
     secret_token: Some(secret_token),
   )
-  |> telega.add_handler(HandleCommand("/dice", dice_command_handler))
-  |> telega.add_handler(HandleCommand("/start", start_command_handler))
+  |> bot.add_handler(HandleCommand("/dice", dice_command_handler))
+  |> bot.add_handler(HandleCommand("/start", start_command_handler))
   |> Ok
 }
 

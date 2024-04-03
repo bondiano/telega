@@ -8,7 +8,7 @@ import gleam/http/response.{type Response, Response}
 import gleam/http.{Get, Post}
 import gleam/option.{type Option, None, Some}
 import gleam/dynamic.{type DecodeError, type Dynamic}
-import telega.{type Bot, type Context}
+import telega/bot.{type Bot, type Context}
 import telega/model.{
   type BotCommand, type BotCommandParameters, type Message,
   type SendDiceParameters, type User, type WebhookInfo,

@@ -9,7 +9,7 @@ import gleam/string
 import gleam/bool
 import gleam/dynamic
 import gleam/list
-import telega.{type Bot}
+import telega/bot.{type Bot}
 import telega/log
 import telega/message
 
@@ -45,7 +45,7 @@ pub fn handle_bot(
       use <- bool.lazy_guard(is_secret_token_valid(bot, req), fn() {
         HttpResponse(401, [], WispEmptyBody)
       })
-      telega.handle_update(bot, message)
+      bot.handle_update(bot, message)
       wisp.ok()
     }
     Error(errors) -> {
@@ -77,7 +77,7 @@ fn decode_to_string(error: dynamic.DecodeError) -> String {
 fn is_bot_request(bot: Bot, req: WispRequest) -> Bool {
   case wisp.path_segments(req) {
     [segment] -> {
-      case telega.is_webhook_path(bot, segment) {
+      case bot.is_webhook_path(bot, segment) {
         True -> True
         False -> False
       }

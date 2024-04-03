@@ -4,7 +4,7 @@ import gleam/http/response.{type Response, Response}
 import gleam/option.{None}
 import mockth
 import gleam/httpc
-import telega
+import telega/bot
 import telega/api
 
 pub fn main() {
@@ -12,7 +12,7 @@ pub fn main() {
 }
 
 fn create_new_bot() {
-  telega.new(
+  bot.new(
     token: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
     url: "https://test.com",
     webhook_path: "secret",
