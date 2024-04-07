@@ -1,42 +1,17 @@
-import gleam/list
-import gleam/string
 import gleam/int
-import telega/log
-import gleam/option.{type Option, None, Some}
-import telega/message.{type Message, CommandMessage, TextMessage}
+import gleam/option.{type Option, None}
+import telega/message.{type Message}
 
-pub type Command {
-  Command(
-    text: String,
-    command: String,
-    /// The command arguments, if any.
-    payload: Option(String),
-  )
-}
+const telegram_url = "https://api.telegram.org/bot"
+
+const default_retry_count = 3
 
 /// Handlers context.
-pub type Context {
-  Context(message: Message, bot: Bot)
+pub type Context(session) {
+  Context(message: Message, bot: Bot, session: session)
 }
 
-pub type Handler {
-  /// Handle all messages.
-  HandleAll(handler: fn(Context) -> Result(Nil, Nil))
-  /// Handle a specific command.
-  HandleCommand(
-    command: String,
-    handler: fn(Context, Command) -> Result(Nil, Nil),
-  )
-  /// Handle multiple commands.
-  HandleCommands(
-    commands: List(String),
-    handler: fn(Context, Command) -> Result(Nil, Nil),
-  )
-  /// Handle text messages.
-  HandleText(handler: fn(Context, String) -> Result(Nil, Nil))
-}
-
-pub type Config {
+pub opaque type Config {
   Config(
     token: String,
     server_url: String,
@@ -52,7 +27,8 @@ pub type Config {
 }
 
 pub type Bot {
-  Bot(config: Config, handlers: List(Handler))
+  /// Bot constructor. Represents a bot configuration wich will be used to create a Bot instance per chat.
+  Bot(config: Config)
 }
 
 /// Creates a new Bot with the given options.
@@ -70,88 +46,36 @@ pub fn new(
       |> int.to_string
     })
 
-  Bot(
-    handlers: [],
-    config: Config(
-      token: token,
-      server_url: server_url,
-      webhook_path: webhook_path,
-      secret_token: secret_token,
-      max_retry_attempts: None,
-      tg_api_url: None,
-    ),
-  )
+  Bot(config: Config(
+    token: token,
+    server_url: server_url,
+    webhook_path: webhook_path,
+    secret_token: secret_token,
+    max_retry_attempts: None,
+    tg_api_url: None,
+  ))
 }
 
-/// Check if a path is the webhook path for the bot.
-pub fn is_webhook_path(bot: Bot, path: String) -> Bool {
-  bot.config.webhook_path == path
+pub fn get_secret_token(bot: Bot) -> String {
+  bot.config.secret_token
 }
 
-/// Add a handler to the bot.
-pub fn add_handler(bot: Bot, handler: Handler) -> Bot {
-  Bot(..bot, handlers: [handler, ..bot.handlers])
+pub fn get_tg_api_url(bot: Bot) -> String {
+  option.unwrap(bot.config.tg_api_url, telegram_url)
 }
 
-/// Handle an update from the Telegram API.
-pub fn handle_update(bot: Bot, message: Message) -> Nil {
-  do_handle_update(bot, message, bot.handlers)
+pub fn get_token(bot: Bot) -> String {
+  bot.config.token
 }
 
-fn extract_text(message: Message) -> String {
-  option.unwrap(message.raw.text, "")
+pub fn get_max_retry_attempts(bot: Bot) -> Int {
+  option.unwrap(bot.config.max_retry_attempts, default_retry_count)
 }
 
-fn do_handle_update(bot: Bot, message: Message, handlers: List(Handler)) -> Nil {
-  case handlers {
-    [handler, ..rest] -> {
-      let handle_result = case handler, message.kind {
-        HandleAll(handle), _ -> handle(Context(bot: bot, message: message))
-        HandleText(handle), TextMessage ->
-          handle(Context(bot: bot, message: message), extract_text(message))
-
-        HandleCommand(command, handle), CommandMessage -> {
-          let message_command = extract_command(message)
-          case message_command.command == command {
-            True -> handle(Context(bot: bot, message: message), message_command)
-            False -> Ok(Nil)
-          }
-        }
-        HandleCommands(commands, handle), CommandMessage -> {
-          let message_command = extract_command(message)
-          case list.contains(commands, message_command.command) {
-            True -> handle(Context(bot: bot, message: message), message_command)
-            False -> Ok(Nil)
-          }
-        }
-        _, _ -> Ok(Nil)
-      }
-
-      case handle_result {
-        Ok(_) -> do_handle_update(bot, message, rest)
-        Error(_) -> {
-          log.error("Failed to handle message")
-          Nil
-        }
-      }
-    }
-    _ -> Nil
-  }
+pub fn get_server_url(bot: Bot) -> String {
+  bot.config.server_url
 }
 
-fn extract_command(message: Message) -> Command {
-  case message.raw.text {
-    None -> Command(text: "", command: "", payload: None)
-    Some(text) -> {
-      case string.split(text, " ") {
-        [command, ..payload] -> {
-          Command(text: text, command: command, payload: case payload {
-            [] -> None
-            [payload, ..] -> Some(payload)
-          })
-        }
-        _ -> Command(text: text, command: "", payload: None)
-      }
-    }
-  }
+pub fn get_webhook_path(bot: Bot) -> String {
+  bot.config.webhook_path
 }

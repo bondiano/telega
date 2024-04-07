@@ -1,4 +1,4 @@
-# Telega Echo Bot
+# Telega Simple Bot
 
 ```sh
 gleam run   # Run the server

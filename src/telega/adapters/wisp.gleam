@@ -9,7 +9,7 @@ import gleam/string
 import gleam/bool
 import gleam/dynamic
 import gleam/list
-import telega/bot.{type Bot}
+import telega.{type Telega}
 import telega/log
 import telega/message
 
@@ -31,22 +31,25 @@ const secret_header = "x-relegram-bot-api-secret-token"
 /// ```
 pub fn handle_bot(
   request req: WispRequest,
-  bot bot: Bot,
+  telega telega: Telega(session),
   next handler: fn() -> WispResponse,
 ) -> WispResponse {
   log.info("Received request from Telegram API")
-  log.info_d(is_secret_token_valid(bot, req))
-  log.info_d(req)
-  use <- bool.lazy_guard(!is_bot_request(bot, req), fn() { handler() })
+  use <- bool.lazy_guard(!is_bot_request(telega, req), fn() { handler() })
   use json <- wisp.require_json(req)
 
   case message.decode(json) {
     Ok(message) -> {
-      use <- bool.lazy_guard(is_secret_token_valid(bot, req), fn() {
+      use <- bool.lazy_guard(is_secret_token_valid(telega, req), fn() {
         HttpResponse(401, [], WispEmptyBody)
       })
-      bot.handle_update(bot, message)
-      wisp.ok()
+      case telega.handle_update(telega, message) {
+        Ok(_) -> wisp.ok()
+        Error(error) -> {
+          log.error("Failed to handle message: " <> error)
+          wisp.internal_server_error()
+        }
+      }
     }
     Error(errors) -> {
       let error_message =
@@ -59,12 +62,12 @@ pub fn handle_bot(
   }
 }
 
-fn is_secret_token_valid(bot: Bot, req: WispRequest) -> Bool {
+fn is_secret_token_valid(telega: Telega(session), req: WispRequest) -> Bool {
   let secret_header_value =
     request.get_header(req, secret_header)
     |> result.unwrap("")
 
-  bot.config.secret_token == secret_header_value
+  telega.is_secret_token_valid(telega, secret_header_value)
 }
 
 /// Format decode error to error message string.
@@ -74,10 +77,10 @@ fn decode_to_string(error: dynamic.DecodeError) -> String {
   "Expected " <> expected <> ", found " <> found <> " at " <> path_string
 }
 
-fn is_bot_request(bot: Bot, req: WispRequest) -> Bool {
+fn is_bot_request(telega: Telega(session), req: WispRequest) -> Bool {
   case wisp.path_segments(req) {
     [segment] -> {
-      case bot.is_webhook_path(bot, segment) {
+      case telega.is_webhook_path(telega, segment) {
         True -> True
         False -> False
       }

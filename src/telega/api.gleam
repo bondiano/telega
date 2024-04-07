@@ -8,16 +8,12 @@ import gleam/http/response.{type Response, Response}
 import gleam/http.{Get, Post}
 import gleam/option.{type Option, None, Some}
 import gleam/dynamic.{type DecodeError, type Dynamic}
-import telega/bot.{type Bot, type Context}
+import telega/bot.{type Bot, type Context, Context} as telega_bot
 import telega/model.{
   type BotCommand, type BotCommandParameters, type Message,
   type SendDiceParameters, type User, type WebhookInfo,
 }
 import telega/log
-
-const telegram_url = "https://api.telegram.org/bot"
-
-const default_retry_count = 5
 
 const default_retry_delay = 1000
 
@@ -39,10 +35,11 @@ type ApiResponse(result) {
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#setwebhook
 pub fn set_webhook(bot: Bot) -> Result(Bool, String) {
-  let webhook_url = bot.config.server_url <> "/" <> bot.config.webhook_path
+  let webhook_url =
+    telega_bot.get_server_url(bot) <> "/" <> telega_bot.get_webhook_path(bot)
   let query = [
     #("url", webhook_url),
-    #("secret_token", bot.config.secret_token),
+    #("secret_token", telega_bot.get_secret_token(bot)),
   ]
 
   new_get_request(bot, path: "setWebhook", query: Some(query))
@@ -105,7 +102,10 @@ pub fn close(bot: Bot) -> Result(Bool, String) {
 /// Use this method to send text messages.
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#sendmessage
-pub fn reply(ctx ctx: Context, text text: String) -> Result(Message, String) {
+pub fn reply(
+  ctx ctx: Context(session),
+  text text: String,
+) -> Result(Message, String) {
   new_post_request(
     ctx.bot,
     path: "sendMessage",
@@ -124,7 +124,7 @@ pub fn reply(ctx ctx: Context, text text: String) -> Result(Message, String) {
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#setmycommands
 pub fn set_my_commands(
-  ctx ctx: Context,
+  ctx ctx: Context(session),
   commands commands: List(BotCommand),
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(Bool, String) {
@@ -161,7 +161,7 @@ pub fn set_my_commands(
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#deletemycommands
 pub fn delete_my_commands(
-  ctx: Context,
+  ctx: Context(session),
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(Bool, String) {
   let parameters =
@@ -184,7 +184,7 @@ pub fn delete_my_commands(
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#getmycommands
 pub fn get_my_commands(
-  ctx: Context,
+  ctx: Context(session),
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(List(BotCommand), String) {
   let parameters =
@@ -207,7 +207,7 @@ pub fn get_my_commands(
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#senddice
 pub fn send_dice(
-  ctx: Context,
+  ctx: Context(session),
   parameters parameters: Option(SendDiceParameters),
 ) -> Result(Message, String) {
   let body_json =
@@ -230,15 +230,14 @@ pub fn send_dice(
 /// A simple method for testing your bot's authentication token.
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#getme
-pub fn get_me(ctx: Context) -> Result(User, String) {
+pub fn get_me(ctx: Context(session)) -> Result(User, String) {
   new_get_request(ctx.bot, path: "getMe", query: None)
   |> fetch(ctx.bot)
   |> map_resonse(model.decode_user)
 }
 
 fn build_url(bot: Bot, path: String) -> String {
-  let url = option.unwrap(bot.config.tg_api_url, telegram_url)
-  url <> bot.config.token <> "/" <> path
+  telega_bot.get_tg_api_url(bot) <> telega_bot.get_token(bot) <> "/" <> path
 }
 
 fn new_post_request(
@@ -295,8 +294,7 @@ fn fetch(
   bot: Bot,
 ) -> Result(Response(String), String) {
   use api_request <- result.try(api_to_request(api_request))
-  let retry_count =
-    option.unwrap(bot.config.max_retry_attempts, default_retry_count)
+  let retry_count = telega_bot.get_max_retry_attempts(bot)
 
   send_with_retry(api_request, retry_count)
   |> result.map_error(fn(error) {
