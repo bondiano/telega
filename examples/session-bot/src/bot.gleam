@@ -11,6 +11,7 @@ import telega/bot.{type Context}
 import telega/adapters/wisp as telega_wisp
 import telega/api as telega_api
 import telega/model as telega_model
+import telega/log
 import session.{type NameBotSession, NameBotSession, SetName, WaitName}
 
 type BotContext =
@@ -49,6 +50,8 @@ fn set_name_message_handler(
   ctx: BotContext,
   name,
 ) -> Result(NameBotSession, String) {
+  log.info("set_name_message_handler")
+  log.info_d(ctx.session)
   use <- bool.guard(ctx.session.state != SetName, Ok(ctx.session))
   use <- telega.log_context(ctx, "set_name")
 

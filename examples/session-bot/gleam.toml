@@ -9,7 +9,7 @@ gleam_erlang = "~> 0.25"
 wisp = "~> 0.12"
 dotenv_gleam = "~> 1.0"
 telega = { path = "../.." }
-carpenter = "~> 0.3"
+carpenter = "~> 0.3.1"
 
 [dev-dependencies]
 gleeunit = "~> 1.0"

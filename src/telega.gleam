@@ -22,16 +22,25 @@ pub opaque type Telega(session) {
   )
 }
 
+pub opaque type TelegaBuilder(session) {
+  TelegaBuilder(telega: Telega(session))
+}
+
 pub opaque type SessionSettings(session) {
   SessionSettings(
+    // Calls after all handlers to persist the session.
     persist_session: fn(String, session) -> Result(session, String),
+    // Calls on initialization of the bot instanse to get the session.
     get_session: fn(String) -> Result(session, String),
+    // Constructs the session key from the message.
+    // Often it's the chat ID. In case you send group message also include the group ID.
     get_session_key: fn(Message) -> String,
   )
 }
 
 pub type Command {
   Command(
+    /// Whole command message
     text: String,
     command: String,
     /// The command arguments, if any.
@@ -66,40 +75,73 @@ pub opaque type Handler(session) {
   HandleText(handler: fn(Context(session), String) -> Result(session, String))
 }
 
+pub fn new(
+  token token: String,
+  url server_url: String,
+  webhook_path webhook_path: String,
+  secret_token secret_token: Option(String),
+) -> TelegaBuilder(session) {
+  TelegaBuilder(Telega(
+    handlers: [],
+    template: bot.new(
+      token: token,
+      url: server_url,
+      webhook_path: webhook_path,
+      secret_token: secret_token,
+    ),
+    registry_subject: None,
+    session_settings: None,
+  ))
+}
+
 pub fn handle_all(
-  telega: Telega(session),
+  builder: TelegaBuilder(session),
   handler: fn(Context(session)) -> Result(session, String),
-) -> Telega(session) {
-  Telega(..telega, handlers: [HandleAll(handler), ..telega.handlers])
+) -> TelegaBuilder(session) {
+  TelegaBuilder(
+    Telega(
+      ..builder.telega,
+      handlers: [HandleAll(handler), ..builder.telega.handlers],
+    ),
+  )
 }
 
 pub fn handle_command(
-  telega: Telega(session),
+  builder: TelegaBuilder(session),
   command: String,
   handler: fn(Context(session), Command) -> Result(session, String),
-) -> Telega(session) {
-  Telega(
-    ..telega,
-    handlers: [HandleCommand(command, handler), ..telega.handlers],
+) -> TelegaBuilder(session) {
+  TelegaBuilder(
+    Telega(
+      ..builder.telega,
+      handlers: [HandleCommand(command, handler), ..builder.telega.handlers],
+    ),
   )
 }
 
 pub fn handle_commands(
-  telega: Telega(session),
+  builder: TelegaBuilder(session),
   commands: List(String),
   handler: fn(Context(session), Command) -> Result(session, String),
-) -> Telega(session) {
-  Telega(
-    ..telega,
-    handlers: [HandleCommands(commands, handler), ..telega.handlers],
+) -> TelegaBuilder(session) {
+  TelegaBuilder(
+    Telega(
+      ..builder.telega,
+      handlers: [HandleCommands(commands, handler), ..builder.telega.handlers],
+    ),
   )
 }
 
 pub fn handle_text(
-  telega: Telega(session),
+  builder: TelegaBuilder(session),
   handler: fn(Context(session), String) -> Result(session, String),
-) -> Telega(session) {
-  Telega(..telega, handlers: [HandleText(handler), ..telega.handlers])
+) -> TelegaBuilder(session) {
+  TelegaBuilder(
+    Telega(
+      ..builder.telega,
+      handlers: [HandleText(handler), ..builder.telega.handlers],
+    ),
+  )
 }
 
 /// Log the message and error message if the handler fails.
@@ -119,62 +161,50 @@ pub fn log_context(
   })
 }
 
-pub fn new(
-  token token: String,
-  url server_url: String,
-  webhook_path webhook_path: String,
-  secret_token secret_token: Option(String),
-) -> Telega(session) {
-  Telega(
-    handlers: [],
-    template: bot.new(
-      token: token,
-      url: server_url,
-      webhook_path: webhook_path,
-      secret_token: secret_token,
-    ),
-    registry_subject: None,
-    session_settings: None,
-  )
-}
-
 pub fn with_session_settings(
-  telega: Telega(session),
+  builder: TelegaBuilder(session),
   persist_session persist_session: fn(String, session) ->
     Result(session, String),
   get_session get_session: fn(String) -> Result(session, String),
   get_session_key get_session_key: fn(Message) -> String,
-) -> Telega(session) {
-  Telega(
-    ..telega,
-    session_settings: Some(SessionSettings(
-      persist_session: persist_session,
-      get_session: get_session,
-      get_session_key: get_session_key,
-    )),
+) -> TelegaBuilder(session) {
+  TelegaBuilder(
+    Telega(
+      ..builder.telega,
+      session_settings: Some(SessionSettings(
+        persist_session: persist_session,
+        get_session: get_session,
+        get_session_key: get_session_key,
+      )),
+    ),
   )
 }
 
-fn nil_session_settings(telega: Telega(Nil)) -> Telega(Nil) {
-  Telega(
-    ..telega,
-    session_settings: Some(
-      SessionSettings(
-        persist_session: fn(_, _) { Ok(Nil) },
-        get_session: fn(_) { Ok(Nil) },
-        get_session_key: fn(_) { "" },
+fn nil_session_settings(builder: TelegaBuilder(Nil)) -> TelegaBuilder(Nil) {
+  TelegaBuilder(
+    Telega(
+      ..builder.telega,
+      session_settings: Some(
+        SessionSettings(
+          persist_session: fn(_, _) { Ok(Nil) },
+          get_session: fn(_) { Ok(Nil) },
+          get_session_key: fn(_) { "" },
+        ),
       ),
     ),
   )
 }
 
-pub fn init_nil_session(telega: Telega(Nil)) -> Result(Telega(Nil), String) {
-  telega
+pub fn init_nil_session(
+  builder: TelegaBuilder(Nil),
+) -> Result(Telega(Nil), String) {
+  builder
   |> nil_session_settings
   |> init
 }
 
-pub fn init(telega: Telega(session)) -> Result(Telega(session), String) {
+pub fn init(builder: TelegaBuilder(session)) -> Result(Telega(session), String) {
+  let TelegaBuilder(telega) = builder
   use is_ok <- result.try(api.set_webhook(telega.template))
   use <- bool.guard(!is_ok, Error("Failed to set webhook"))
 
@@ -305,17 +335,11 @@ fn handle_registry_message(
       case dict.get(registry.bots, session_key) {
         Ok(registry_item) -> {
           case try_send_message(registry_item, message) {
-            Ok(_) -> {
-              actor.continue(registry)
-            }
-            Error(_) -> {
-              add_bot_instance(registry, session_key, message)
-            }
+            Ok(_) -> actor.continue(registry)
+            Error(_) -> add_bot_instance(registry, session_key, message)
           }
         }
-        Error(Nil) -> {
-          add_bot_instance(registry, session_key, message)
-        }
+        Error(Nil) -> add_bot_instance(registry, session_key, message)
       }
     }
   }
@@ -351,17 +375,14 @@ fn add_bot_instance(
       let registry_item = RegistryItem(bot_subject, parent_subject)
 
       case try_send_message(registry_item, message) {
-        Ok(_) -> {
+        Ok(_) ->
           actor.continue(
             Registry(
               ..registry,
               bots: dict.insert(registry.bots, session_key, registry_item),
             ),
           )
-        }
-        Error(_) -> {
-          actor.continue(registry)
-        }
+        Error(_) -> actor.continue(registry)
       }
     }
     Error(e) -> {
@@ -371,7 +392,7 @@ fn add_bot_instance(
   }
 }
 
-fn init_session(
+fn get_session(
   session_settings: SessionSettings(session),
   message: Message,
 ) -> Result(session, String) {
@@ -395,8 +416,8 @@ fn start_bot_instanse(
         process.new_selector()
         |> process.selecting(registry_subject, function.identity)
 
-      case init_session(registry.session_settings, message) {
-        Ok(session) -> {
+      case get_session(registry.session_settings, message) {
+        Ok(session) ->
           BotInstanse(
             key: session_key,
             session: session,
@@ -405,10 +426,7 @@ fn start_bot_instanse(
             session_settings: registry.session_settings,
           )
           |> actor.Ready(selector)
-        }
-        Error(e) -> {
-          actor.Failed("Failed to init session:\n" <> e)
-        }
+        Error(e) -> actor.Failed("Failed to init session:\n" <> e)
       }
     },
     loop: handle_bot_instanse_message,
@@ -423,9 +441,8 @@ fn handle_bot_instanse_message(
   case message {
     HandleBotInstanseMessage(message) -> {
       case do_bot_handle_update(bot, message, bot.handlers) {
-        Ok(new_session) -> {
+        Ok(new_session) ->
           actor.continue(BotInstanse(..bot, session: new_session))
-        }
         Error(e) -> {
           log.error("Failed to handle update:\n" <> e)
           actor.Stop(process.Normal)
@@ -454,7 +471,6 @@ fn do_bot_handle_update(
             Context(bot: bot.template, message: message, session: bot.session),
             option.unwrap(message.raw.text, ""),
           )
-
         HandleCommand(command, handle), CommandMessage -> {
           let message_command = extract_command(message)
           case message_command.command == command {
@@ -489,7 +505,12 @@ fn do_bot_handle_update(
       }
 
       case handle_result {
-        Ok(_) -> do_bot_handle_update(bot, message, rest)
+        Ok(new_session) ->
+          do_bot_handle_update(
+            BotInstanse(..bot, session: new_session),
+            message,
+            rest,
+          )
         Error(e) -> {
           Error(
             "Failed to handle message: \n"
@@ -507,16 +528,14 @@ fn do_bot_handle_update(
 fn extract_command(message: Message) -> Command {
   case message.raw.text {
     None -> Command(text: "", command: "", payload: None)
-    Some(text) -> {
+    Some(text) ->
       case string.split(text, " ") {
-        [command, ..payload] -> {
+        [command, ..payload] ->
           Command(text: text, command: command, payload: case payload {
             [] -> None
             [payload, ..] -> Some(payload)
           })
-        }
         [] -> Command(text: text, command: "", payload: None)
       }
-    }
   }
 }

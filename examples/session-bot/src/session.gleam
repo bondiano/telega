@@ -14,6 +14,7 @@ pub type NameBotSession {
 pub fn attach(bot) {
   let assert Ok(session_table) =
     table.build("session")
+    |> table.privacy(table.Public)
     |> table.set
 
   telega.with_session_settings(
@@ -21,8 +22,8 @@ pub fn attach(bot) {
     get_session_key: fn(message) { int.to_string(message.raw.chat.id) },
     get_session: fn(key) {
       case table.lookup(session_table, key) {
-        [#(_, session), _] -> Ok(session)
-        _ -> Ok(NameBotSession(name: "", state: WaitName))
+        [#(_, session), ..] -> Ok(session)
+        _ -> Ok(NameBotSession(name: "Unknown", state: WaitName))
       }
     },
     persist_session: fn(key, session) {
