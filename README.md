@@ -27,7 +27,6 @@ import gleam/option.{None, Some}
 import mist
 import wisp
 import telega
-import telega/bot.{HandleAll}
 import telega/adapters/wisp as telega_wisp
 import telega/api as telega_api
 
@@ -49,14 +48,16 @@ fn echo_handler(ctx) {
 
 pub fn main() {
   wisp.configure_logger()
-  let bot =
-    bot.new(
+
+  let assert Ok(bot) =
+    telega.new(
       token: "your bot token from @BotFather",
       url: "your bot url",
       webhook_path: "secret path",
       secret_token: None,
     )
-    |> bot.add_handler(HandleAll(echo_handler))
+    |> telega.handle_all(echo_handler)
+    |> telega.init_nil_session
 
   let assert Ok(_) =
     wisp.mist_handler(handle_request(bot, _), wisp.random_string(64))
@@ -64,8 +65,6 @@ pub fn main() {
     |> mist.port(8000)
     |> mist.start_http
     |> result.nil_error
-
-  let assert Ok(_) = telega_api.set_webhook(bot)
 
   process.sleep_forever()
 }

@@ -24,7 +24,7 @@ pub opaque type Telega(session) {
 
 pub opaque type SessionSettings(session) {
   SessionSettings(
-    persist_session: fn(session) -> String,
+    persist_session: fn(String, session) -> Result(session, String),
     get_session: fn(String) -> Result(session, String),
     get_session_key: fn(Message) -> String,
   )
@@ -114,7 +114,7 @@ pub fn log_context(
 
   handler()
   |> result.map_error(fn(e) {
-    log.error(prefix <> "failed: " <> string.inspect(e))
+    log.error(prefix <> "Handler failed: " <> string.inspect(e))
     e
   })
 }
@@ -138,12 +138,29 @@ pub fn new(
   )
 }
 
+pub fn with_session_settings(
+  telega: Telega(session),
+  persist_session persist_session: fn(String, session) ->
+    Result(session, String),
+  get_session get_session: fn(String) -> Result(session, String),
+  get_session_key get_session_key: fn(Message) -> String,
+) -> Telega(session) {
+  Telega(
+    ..telega,
+    session_settings: Some(SessionSettings(
+      persist_session: persist_session,
+      get_session: get_session,
+      get_session_key: get_session_key,
+    )),
+  )
+}
+
 fn nil_session_settings(telega: Telega(Nil)) -> Telega(Nil) {
   Telega(
     ..telega,
     session_settings: Some(
       SessionSettings(
-        persist_session: fn(_) { "" },
+        persist_session: fn(_, _) { Ok(Nil) },
         get_session: fn(_) { Ok(Nil) },
         get_session_key: fn(_) { "" },
       ),
@@ -171,7 +188,7 @@ pub fn init(telega: Telega(session)) -> Result(Telega(session), String) {
 
   let telega_subject = process.new_subject()
   let registry_actor =
-    supervisor.worker(fn(_) {
+    supervisor.supervisor(fn(_) {
       start_registry(telega, session_settings, telega_subject)
     })
 
@@ -205,11 +222,18 @@ pub fn handle_update(
 
 // Internal Registry stuff --------------------------------------------
 
+type RegistryItem {
+  RegistryItem(
+    bot_subject: Subject(BotInstanseMessage),
+    parent_subject: Subject(Subject(BotInstanseMessage)),
+  )
+}
+
 type Registry(session) {
   /// Registry works as routing for chat_id to bot instance.
   /// If no bot instance in registry, it will create a new one.
   Registry(
-    bots: Dict(Int, Subject(BotInstanseMessage)),
+    bots: Dict(String, RegistryItem),
     template: Bot,
     session_settings: SessionSettings(session),
     handlers: List(Handler(session)),
@@ -227,10 +251,11 @@ type BotInstanseMessage {
 type BotInstanse(session) {
   // TODO: add active handler for conversation
   BotInstanse(
-    template: Bot,
-    chat_id: Int,
+    key: String,
     session: session,
+    template: Bot,
     handlers: List(Handler(session)),
+    session_settings: SessionSettings(session),
   )
 }
 
@@ -257,8 +282,16 @@ fn start_registry(
       |> actor.Ready(selector)
     },
     loop: handle_registry_message,
-    init_timeout: 1000,
+    init_timeout: 10_000,
   ))
+}
+
+fn try_send_message(registry_item: RegistryItem, message: Message) {
+  process.try_call(
+    registry_item.bot_subject,
+    fn(_) { HandleBotInstanseMessage(message) },
+    1000,
+  )
 }
 
 fn handle_registry_message(
@@ -267,40 +300,73 @@ fn handle_registry_message(
 ) {
   case message {
     HandleBotRegistryMessage(message) -> {
-      let chat_id = message.raw.chat.id
-      case dict.get(registry.bots, chat_id) {
-        Ok(bot_subject) -> {
-          actor.send(bot_subject, HandleBotInstanseMessage(message))
-          actor.continue(registry)
-        }
-        Error(Nil) -> {
-          case init_session(registry.session_settings, message) {
-            Ok(session) -> {
-              case start_bot_instanse(registry, session, chat_id) {
-                Ok(bot_subject) -> {
-                  actor.send(bot_subject, HandleBotInstanseMessage(message))
-                  actor.continue(
-                    Registry(
-                      ..registry,
-                      bots: dict.insert(registry.bots, chat_id, bot_subject),
-                    ),
-                  )
-                }
-                Error(e) -> {
-                  log.error(
-                    "Failed to start bot instanse:\n" <> string.inspect(e),
-                  )
-                  actor.continue(registry)
-                }
-              }
-            }
-            Error(e) -> {
-              log.error("Failed to init session:\n" <> e)
+      let session_key = registry.session_settings.get_session_key(message)
+
+      case dict.get(registry.bots, session_key) {
+        Ok(registry_item) -> {
+          case try_send_message(registry_item, message) {
+            Ok(_) -> {
               actor.continue(registry)
+            }
+            Error(_) -> {
+              add_bot_instance(registry, session_key, message)
             }
           }
         }
+        Error(Nil) -> {
+          add_bot_instance(registry, session_key, message)
+        }
       }
+    }
+  }
+}
+
+fn add_bot_instance(
+  registry: Registry(session),
+  session_key: String,
+  message: Message,
+) {
+  let parent_subject = process.new_subject()
+  let registry_actor =
+    supervisor.supervisor(fn(_) {
+      start_bot_instanse(
+        registry: registry,
+        message: message,
+        session_key: session_key,
+        parent_subject: parent_subject,
+      )
+    })
+
+  let assert Ok(_supervisor_subject) =
+    supervisor.start(supervisor.add(_, registry_actor))
+
+  let bot_subject_result =
+    process.receive(parent_subject, 1000)
+    |> result.map_error(fn(e) {
+      "Failed to start bot instanse:\n" <> string.inspect(e)
+    })
+
+  case bot_subject_result {
+    Ok(bot_subject) -> {
+      let registry_item = RegistryItem(bot_subject, parent_subject)
+
+      case try_send_message(registry_item, message) {
+        Ok(_) -> {
+          actor.continue(
+            Registry(
+              ..registry,
+              bots: dict.insert(registry.bots, session_key, registry_item),
+            ),
+          )
+        }
+        Error(_) -> {
+          actor.continue(registry)
+        }
+      }
+    }
+    Error(e) -> {
+      log.error(e)
+      actor.continue(registry)
     }
   }
 }
@@ -315,17 +381,39 @@ fn init_session(
 }
 
 fn start_bot_instanse(
-  registry: Registry(session),
-  session: session,
-  chat_id: Int,
+  registry registry: Registry(session),
+  message message: Message,
+  session_key session_key: String,
+  parent_subject parent_subject: Subject(Subject(BotInstanseMessage)),
 ) -> Result(Subject(BotInstanseMessage), actor.StartError) {
-  BotInstanse(
-    template: registry.template,
-    chat_id: chat_id,
-    session: session,
-    handlers: registry.handlers,
-  )
-  |> actor.start(handle_bot_instanse_message)
+  actor.start_spec(actor.Spec(
+    init: fn() {
+      let registry_subject = process.new_subject()
+      process.send(parent_subject, registry_subject)
+
+      let selector =
+        process.new_selector()
+        |> process.selecting(registry_subject, function.identity)
+
+      case init_session(registry.session_settings, message) {
+        Ok(session) -> {
+          BotInstanse(
+            key: session_key,
+            session: session,
+            template: registry.template,
+            handlers: registry.handlers,
+            session_settings: registry.session_settings,
+          )
+          |> actor.Ready(selector)
+        }
+        Error(e) -> {
+          actor.Failed("Failed to init session:\n" <> e)
+        }
+      }
+    },
+    loop: handle_bot_instanse_message,
+    init_timeout: 10_000,
+  ))
 }
 
 fn handle_bot_instanse_message(
@@ -379,7 +467,7 @@ fn do_bot_handle_update(
                 ),
                 message_command,
               )
-            False -> Error("Command " <> command <> " not found")
+            False -> Ok(bot.session)
           }
         }
         HandleCommands(commands, handle), CommandMessage -> {
@@ -394,12 +482,7 @@ fn do_bot_handle_update(
                 ),
                 message_command,
               )
-            False ->
-              Error(
-                "No one command from: "
-                <> string.join(commands, ", ")
-                <> " found",
-              )
+            False -> Ok(bot.session)
           }
         }
         _, _ -> Ok(bot.session)
@@ -417,7 +500,7 @@ fn do_bot_handle_update(
         }
       }
     }
-    [] -> Ok(bot.session)
+    [] -> bot.session_settings.persist_session(bot.key, bot.session)
   }
 }
 
