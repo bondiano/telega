@@ -75,8 +75,8 @@ fn build_bot() {
     webhook_path: webhook_path,
     secret_token: Some(secret_token),
   )
-  |> telega.handle_command("/dice", dice_command_handler)
-  |> telega.handle_command("/start", start_command_handler)
+  |> telega.handle_command("dice", dice_command_handler)
+  |> telega.handle_command("start", start_command_handler)
   |> telega.init_nil_session
 }
 

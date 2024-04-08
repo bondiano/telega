@@ -39,9 +39,11 @@ pub opaque type SessionSettings(session) {
 }
 
 pub type Command {
+  /// Represents a command message.
   Command(
     /// Whole command message
     text: String,
+    /// Command name without the leading slash
     command: String,
     /// The command arguments, if any.
     payload: Option(String),
@@ -49,11 +51,15 @@ pub type Command {
 }
 
 /// Check if a path is the webhook path for the bot.
+///
+/// Usefull if you plan to implement own adapter.
 pub fn is_webhook_path(telega: Telega(session), path: String) -> Bool {
   bot.get_webhook_path(telega.template) == path
 }
 
 /// Check if a secret token is valid.
+///
+/// Usefull if you plan to implement own adapter.
 pub fn is_secret_token_valid(telega: Telega(session), token: String) -> Bool {
   bot.get_secret_token(telega.template) == token
 }
@@ -75,6 +81,7 @@ pub opaque type Handler(session) {
   HandleText(handler: fn(Context(session), String) -> Result(session, String))
 }
 
+/// Create a new Telega instance.
 pub fn new(
   token token: String,
   url server_url: String,
@@ -94,6 +101,7 @@ pub fn new(
   ))
 }
 
+/// Handles all messages.
 pub fn handle_all(
   builder: TelegaBuilder(session),
   handler: fn(Context(session)) -> Result(session, String),
@@ -106,6 +114,7 @@ pub fn handle_all(
   )
 }
 
+/// Handles a specific command.
 pub fn handle_command(
   builder: TelegaBuilder(session),
   command: String,
@@ -119,6 +128,7 @@ pub fn handle_command(
   )
 }
 
+/// Handles multiple commands.
 pub fn handle_commands(
   builder: TelegaBuilder(session),
   commands: List(String),
@@ -132,6 +142,7 @@ pub fn handle_commands(
   )
 }
 
+/// Handles text messages.
 pub fn handle_text(
   builder: TelegaBuilder(session),
   handler: fn(Context(session), String) -> Result(session, String),
@@ -161,6 +172,7 @@ pub fn log_context(
   })
 }
 
+/// Construct a session settings.
 pub fn with_session_settings(
   builder: TelegaBuilder(session),
   persist_session persist_session: fn(String, session) ->
@@ -195,6 +207,8 @@ fn nil_session_settings(builder: TelegaBuilder(Nil)) -> TelegaBuilder(Nil) {
   )
 }
 
+/// Initialize a Telega instance with a `Nil` session.
+/// Usefulwhen you don't need to persist the session.
 pub fn init_nil_session(
   builder: TelegaBuilder(Nil),
 ) -> Result(Telega(Nil), String) {
@@ -203,6 +217,9 @@ pub fn init_nil_session(
   |> init
 }
 
+/// Initialize a Telega instance.
+/// This function should be called after all handlers are added.
+/// It will set the webhook and start the `Registry`.
 pub fn init(builder: TelegaBuilder(session)) -> Result(Telega(session), String) {
   let TelegaBuilder(telega) = builder
   use is_ok <- result.try(api.set_webhook(telega.template))
@@ -531,7 +548,9 @@ fn extract_command(message: Message) -> Command {
     Some(text) ->
       case string.split(text, " ") {
         [command, ..payload] ->
-          Command(text: text, command: command, payload: case payload {
+          Command(text: text, command: string.drop_left(command, 1), payload: case
+            payload
+          {
             [] -> None
             [payload, ..] -> Some(payload)
           })
