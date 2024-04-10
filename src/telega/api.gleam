@@ -11,7 +11,8 @@ import gleam/dynamic.{type DecodeError, type Dynamic}
 import telega/bot.{type Bot, type Context, Context} as telega_bot
 import telega/model.{
   type BotCommand, type BotCommandParameters, type Message,
-  type SendDiceParameters, type User, type WebhookInfo,
+  type SendDiceParameters, type SendMessageParameters, type User,
+  type WebhookInfo,
 }
 import telega/log
 
@@ -98,7 +99,6 @@ pub fn close(bot: Bot) -> Result(Bool, String) {
   |> map_resonse(dynamic.bool)
 }
 
-// TODO: Support all options from the official reference.
 /// Use this method to send text messages.
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#sendmessage
@@ -106,14 +106,28 @@ pub fn reply(
   ctx ctx: Context(session),
   text text: String,
 ) -> Result(Message, String) {
+  reply_with_parameters(
+    ctx,
+    parameters: model.new_send_message_parameters(
+      text: text,
+      chat_id: model.Inted(ctx.message.raw.chat.id),
+    ),
+  )
+}
+
+/// Use this method to send text messages with additional parameters.
+///
+/// **Official reference:** https://core.telegram.org/bots/api#sendmessage
+pub fn reply_with_parameters(
+  ctx ctx: Context(session),
+  parameters parameters: SendMessageParameters,
+) -> Result(Message, String) {
+  let body_json = model.encode_send_message_parameters(parameters)
+
   new_post_request(
     ctx.bot,
     path: "sendMessage",
-    body: json.object([
-        #("chat_id", json.int(ctx.message.raw.chat.id)),
-        #("text", json.string(text)),
-      ])
-      |> json.to_string,
+    body: json.to_string(body_json),
     query: None,
   )
   |> fetch(ctx.bot)
@@ -129,7 +143,7 @@ pub fn set_my_commands(
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(Bool, String) {
   let parameters =
-    option.unwrap(parameters, model.new_botcommand_parameters())
+    option.unwrap(parameters, model.default_botcommand_parameters())
     |> model.encode_botcommand_parameters
 
   let body_json =
@@ -165,7 +179,7 @@ pub fn delete_my_commands(
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(Bool, String) {
   let parameters =
-    option.unwrap(parameters, model.new_botcommand_parameters())
+    option.unwrap(parameters, model.default_botcommand_parameters())
     |> model.encode_botcommand_parameters
 
   let body_json = json.object(parameters)
@@ -188,7 +202,7 @@ pub fn get_my_commands(
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(List(BotCommand), String) {
   let parameters =
-    option.unwrap(parameters, model.new_botcommand_parameters())
+    option.unwrap(parameters, model.default_botcommand_parameters())
     |> model.encode_botcommand_parameters
 
   let body_json = json.object(parameters)
@@ -286,7 +300,7 @@ fn api_to_request(
       |> result.map(set_query(_, query))
     }
   }
-  |> result.map_error(fn(_) { "Failed to convert API request to HTTP request" })
+  |> result.replace_error("Failed to convert API request to HTTP request")
 }
 
 fn fetch(
@@ -340,10 +354,9 @@ fn map_resonse(
 ) -> Result(a, String) {
   response
   |> result.map(fn(response) {
-    let Response(body: body, ..) = response
-    let decode = response_decoder(result_decoder)
-    json.decode(body, decode)
-    |> result.map_error(fn(_) { "Failed to decode response: " <> body })
+    response_decoder(result_decoder)
+    |> json.decode(response.body, _)
+    |> result.replace_error("Failed to decode response: " <> response.body)
     |> result.map(fn(response) { response.result })
   })
   |> result.flatten

@@ -163,7 +163,7 @@ pub type Message {
     // TODO: video_chat_started
     // TODO: video_chat_ended
     // TODO: video_chat_participants_invited
-    // TODO: web_app_data
+    web_app_data: Option(WebAppData),
     /// Inline keyboard attached to the message. `login_url` buttons are represented as ordinary `url` buttons.
     reply_markup: Option(InlineKeyboardMarkup),
   )
@@ -226,6 +226,8 @@ pub fn decode_message(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
     dynamic.optional_field("connected_website", dynamic.string)
   let decode_inline_keyboard_markup =
     dynamic.optional_field("reply_markup", decode_inline_markup)
+  let decode_web_app_data =
+    dynamic.optional_field("web_app_data", decode_web_app_data)
 
   case
     decode_message_id(json),
@@ -258,7 +260,8 @@ pub fn decode_message(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
     decode_migrate_to_chat_id(json),
     decode_migrate_from_chat_id(json),
     decode_connected_website(json),
-    decode_inline_keyboard_markup(json)
+    decode_inline_keyboard_markup(json),
+    decode_web_app_data(json)
   {
     Ok(message_id), Ok(message_thread_id), Ok(from), Ok(sender_chat), Ok(
       sender_boost_count,
@@ -274,7 +277,7 @@ pub fn decode_message(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
       channel_chat_created,
     ), Ok(migrate_to_chat_id), Ok(migrate_from_chat_id), Ok(connected_website), Ok(
       inline_keyboard_markup,
-    ) ->
+    ), Ok(web_app_data) ->
       Ok(Message(
         message_id: message_id,
         message_thread_id: message_thread_id,
@@ -306,9 +309,10 @@ pub fn decode_message(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
         migrate_to_chat_id: migrate_to_chat_id,
         migrate_from_chat_id: migrate_from_chat_id,
         connected_website: connected_website,
+        web_app_data: web_app_data,
         reply_markup: inline_keyboard_markup,
       ))
-    message_id, message_thread_id, from, sender_chat, sender_boost_count, date, chat, is_topic_message, is_automatic_forward, reply_to_message, via_bot, edit_date, has_protected_content, media_group_id, author_signature, text, entities, caption, caption_entities, has_media_spoiler, new_chat_members, left_chat_member, new_chat_title, delete_chat_photo, group_chat_created, supergroup_chat_created, channel_chat_created, migrate_to_chat_id, migrate_from_chat_id, connected_website, inline_keyboard_markup ->
+    message_id, message_thread_id, from, sender_chat, sender_boost_count, date, chat, is_topic_message, is_automatic_forward, reply_to_message, via_bot, edit_date, has_protected_content, media_group_id, author_signature, text, entities, caption, caption_entities, has_media_spoiler, new_chat_members, left_chat_member, new_chat_title, delete_chat_photo, group_chat_created, supergroup_chat_created, channel_chat_created, migrate_to_chat_id, migrate_from_chat_id, connected_website, inline_keyboard_markup, web_app_data ->
       Error(
         list.concat([
           all_errors(message_id),
@@ -342,17 +346,9 @@ pub fn decode_message(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
           all_errors(migrate_from_chat_id),
           all_errors(connected_website),
           all_errors(inline_keyboard_markup),
+          all_errors(web_app_data),
         ]),
       )
-  }
-}
-
-fn all_errors(
-  result: Result(a, List(dynamic.DecodeError)),
-) -> List(dynamic.DecodeError) {
-  case result {
-    Ok(_) -> []
-    Error(errors) -> errors
   }
 }
 
@@ -411,7 +407,7 @@ pub type BotCommandParameters {
   )
 }
 
-pub fn new_botcommand_parameters() -> BotCommandParameters {
+pub fn default_botcommand_parameters() -> BotCommandParameters {
   BotCommandParameters(scope: None, language_code: None)
 }
 
@@ -429,47 +425,43 @@ pub fn decode_bot_command(
 pub fn encode_botcommand_parameters(
   params: BotCommandParameters,
 ) -> List(#(String, Json)) {
-  let scope =
-    option_to_json_object_list(params.scope, "scope", bot_command_scope_to_json)
-
-  let language_code =
-    option_to_json_object_list(
-      params.language_code,
-      "language_code",
-      json.string,
-    )
-
-  list.concat([scope, language_code])
+  [
+    #("scope", json.nullable(params.scope, bot_command_scope_to_json)),
+    #("language_code", json.nullable(params.language_code, json.string)),
+  ]
 }
 
 pub fn bot_command_scope_to_json(scope: BotCommandScope) {
   case scope {
-    BotCommandDefaultScope -> json.object([#("type", json.string("default"))])
+    BotCommandDefaultScope ->
+      json_object_filter_nulls([#("type", json.string("default"))])
     BotCommandAllPrivateChatsScope ->
-      json.object([#("type", json.string("all_private_chats"))])
+      json_object_filter_nulls([#("type", json.string("all_private_chats"))])
     BotCommandScopeAllGroupChats ->
-      json.object([#("type", json.string("all_group_chats"))])
+      json_object_filter_nulls([#("type", json.string("all_group_chats"))])
     BotCommandScopeAllChatAdministrators ->
-      json.object([#("type", json.string("all_chat_administrators"))])
+      json_object_filter_nulls([
+        #("type", json.string("all_chat_administrators")),
+      ])
     BotCommandScopeChat(chat_id: chat_id) ->
-      json.object([
+      json_object_filter_nulls([
         #("type", json.string("chat")),
         #("chat_id", json.int(chat_id)),
       ])
     BotCommandScopeChatString(chat_id: chat_id) ->
-      json.object([
+      json_object_filter_nulls([
         #("type", json.string("chat")),
-        #("chat_id", string_or_int_to_json(chat_id)),
+        #("chat_id", encode_int_or_string(chat_id)),
       ])
     BotCommandScopeChatAdministrators(chat_id: chat_id) ->
-      json.object([
+      json_object_filter_nulls([
         #("type", json.string("chat_administrators")),
-        #("chat_id", string_or_int_to_json(chat_id)),
+        #("chat_id", encode_int_or_string(chat_id)),
       ])
     BotCommandScopeChatMember(chat_id: chat_id, user_id: user_id) ->
-      json.object([
+      json_object_filter_nulls([
         #("type", json.string("chat_member")),
-        #("chat_id", string_or_int_to_json(chat_id)),
+        #("chat_id", encode_int_or_string(chat_id)),
         #("user_id", json.int(user_id)),
       ])
   }
@@ -522,25 +514,22 @@ pub fn decode_user(json: Dynamic) -> Result(User, dynamic.DecodeErrors) {
 }
 
 pub fn encode_user(user: User) -> Json {
-  let id = [#("id", json.int(user.id))]
-  let is_bot = [#("is_bot", json.bool(user.is_bot))]
-  let first_name = [#("first_name", json.string(user.first_name))]
-  let last_name =
-    option_to_json_object_list(user.last_name, "last_name", json.string)
-  let username =
-    option_to_json_object_list(user.username, "username", json.string)
-  let language_code =
-    option_to_json_object_list(user.language_code, "language_code", json.string)
-  let is_premium =
-    option_to_json_object_list(user.is_premium, "is_premium", json.bool)
-  let added_to_attachment_menu =
-    option_to_json_object_list(
-      user.added_to_attachment_menu,
-      "added_to_attachment_menu",
-      json.bool,
-    )
+  let id = #("id", json.int(user.id))
+  let is_bot = #("is_bot", json.bool(user.is_bot))
+  let first_name = #("first_name", json.string(user.first_name))
+  let last_name = #("last_name", json.nullable(user.last_name, json.string))
+  let username = #("username", json.nullable(user.username, json.string))
+  let language_code = #(
+    "language_code",
+    json.nullable(user.language_code, json.string),
+  )
+  let is_premium = #("is_premium", json.nullable(user.is_premium, json.bool))
+  let added_to_attachment_menu = #(
+    "added_to_attachment_menu",
+    json.nullable(user.added_to_attachment_menu, json.bool),
+  )
 
-  [
+  json_object_filter_nulls([
     id,
     is_bot,
     first_name,
@@ -549,9 +538,7 @@ pub fn encode_user(user: User) -> Json {
     language_code,
     is_premium,
     added_to_attachment_menu,
-  ]
-  |> list.concat
-  |> json.object
+  ])
 }
 
 // MessageEntity ---------------------------------------------------------------------
@@ -593,30 +580,153 @@ pub fn decode_message_entity(
 }
 
 pub fn encode_message_entity(message_entity: MessageEntity) -> Json {
-  let entity_type = [#("entity_type", json.string(message_entity.entity_type))]
-  let offset = [#("offset", json.int(message_entity.offset))]
-  let length = [#("length", json.int(message_entity.length))]
-  let url = option_to_json_object_list(message_entity.url, "url", json.string)
-  let user =
-    option_to_json_object_list(message_entity.user, "user", encode_user)
-  let language =
-    option_to_json_object_list(message_entity.language, "language", json.string)
-  let custom_emoji_id =
-    option_to_json_object_list(
-      message_entity.custom_emoji_id,
-      "custom_emoji_id",
-      json.string,
-    )
+  let entity_type = #("entity_type", json.string(message_entity.entity_type))
+  let offset = #("offset", json.int(message_entity.offset))
+  let length = #("length", json.int(message_entity.length))
+  let url = #("url", json.nullable(message_entity.url, json.string))
+  let user = #("user", json.nullable(message_entity.user, encode_user))
+  let language = #(
+    "language",
+    json.nullable(message_entity.language, json.string),
+  )
+  let custom_emoji_id = #(
+    "custom_emoji_id",
+    json.nullable(message_entity.custom_emoji_id, json.string),
+  )
 
-  [entity_type, offset, length, url, user, language, custom_emoji_id]
-  |> list.concat
-  |> json.object
+  json_object_filter_nulls([
+    entity_type,
+    offset,
+    length,
+    url,
+    user,
+    language,
+    custom_emoji_id,
+  ])
 }
 
-// Keyboard ---------------------------------------------------------------------
+// SendMessage ------------------------------------------------------------------------
+
+pub type SendMessageParameters {
+  /// Parameters to send using the [sendMessage](https://core.telegram.org/bots/api#sendmessage) method
+  SendMessageParameters(
+    /// Unique identifier of the business connection on behalf of which the message will be sent
+    business_connection_id: Option(String),
+    /// Unique identifier for the target chat or username of the target channel (in the format `@channelusername`)
+    chat_id: IntOrString,
+    /// Unique identifier for the target message thread (topic) of the forum; for forum supergroups only
+    message_thread_id: Option(Int),
+    /// Text of the message to be sent, 1-4096 characters after entities parsing
+    text: String,
+    /// Mode for parsing entities in the message text. See [formatting options](https://core.telegram.org/bots/api#formatting-options) for more details.
+    parse_mode: Option(String),
+    /// A JSON-serialized list of special entities that appear in message text, which can be specified instead of _parse_mode_
+    entities: Option(List(MessageEntity)),
+    /// Link preview generation options for the message
+    link_preview_options: Option(LinkPreviewOptions),
+    /// Sends the message [silently](https://telegram.org/blog/channels-2-0#silent-messages). Users will receive a notification with no sound.
+    disable_notification: Option(Bool),
+    /// Protects the contents of the sent message from forwarding and saving
+    protect_content: Option(Bool),
+    /// Description of the message to reply to
+    reply_parameters: Option(ReplyParameters),
+    /// Additional interface options. A JSON-serialized object for an [inline keyboard](https://core.telegram.org/bots/features#inline-keyboards), [custom reply keyboard](https://core.telegram.org/bots/features#keyboards), instructions to remove a reply keyboard or to force a reply from the user. Not supported for messages sent on behalf of a business account
+    reply_markup: Option(ReplyMarkup),
+  )
+}
+
+pub fn new_send_message_parameters(
+  chat_id chat_id: IntOrString,
+  text text: String,
+) -> SendMessageParameters {
+  SendMessageParameters(
+    chat_id: chat_id,
+    text: text,
+    business_connection_id: None,
+    message_thread_id: None,
+    parse_mode: None,
+    entities: None,
+    link_preview_options: None,
+    disable_notification: None,
+    protect_content: None,
+    reply_parameters: None,
+    reply_markup: None,
+  )
+}
+
+pub fn encode_send_message_parameters(
+  send_message_parameters: SendMessageParameters,
+) -> Json {
+  let business_connection_id = #(
+    "business_connection_id",
+    json.nullable(send_message_parameters.business_connection_id, json.string),
+  )
+  let chat_id = #(
+    "chat_id",
+    encode_int_or_string(send_message_parameters.chat_id),
+  )
+
+  let message_thread_id = #(
+    "message_thread_id",
+    json.nullable(send_message_parameters.message_thread_id, json.int),
+  )
+  let text = #("text", json.string(send_message_parameters.text))
+  let parse_mode = #(
+    "parse_mode",
+    json.nullable(send_message_parameters.parse_mode, json.string),
+  )
+  let entities = #(
+    "entities",
+    json.nullable(send_message_parameters.entities, json.array(
+      _,
+      encode_message_entity,
+    )),
+  )
+  let link_preview_options = #(
+    "link_preview_options",
+    json.nullable(
+      send_message_parameters.link_preview_options,
+      encode_link_preview_options,
+    ),
+  )
+  let disable_notification = #(
+    "disable_notification",
+    json.nullable(send_message_parameters.disable_notification, json.bool),
+  )
+  let protect_content = #(
+    "protect_content",
+    json.nullable(send_message_parameters.protect_content, json.bool),
+  )
+  let reply_parameters = #(
+    "reply_parameters",
+    json.nullable(
+      send_message_parameters.reply_parameters,
+      encode_reply_parameters,
+    ),
+  )
+  let reply_markup = #(
+    "reply_markup",
+    json.nullable(send_message_parameters.reply_markup, encode_reply_markup),
+  )
+
+  json_object_filter_nulls([
+    business_connection_id,
+    chat_id,
+    message_thread_id,
+    text,
+    parse_mode,
+    entities,
+    link_preview_options,
+    disable_notification,
+    protect_content,
+    reply_parameters,
+    reply_markup,
+  ])
+}
+
+// InlineKeyboard ---------------------------------------------------------------------
 
 pub type InlineKeyboardButton {
-  // TODO: complete the implementation
   /// **Official reference:** https://core.telegram.org/bots/api#inlinekeyboardbutton
   InlineKeyboardButton(
     /// Label text on the button
@@ -625,12 +735,18 @@ pub type InlineKeyboardButton {
     url: Option(String),
     /// Data to be sent in a [callback query](https://core.telegram.org/bots/api#callbackquery) to the bot when button is pressed, 1-64 bytes
     callback_data: Option(String),
+    /// Description of the [Web App](https://core.telegram.org/bots/webapps) that will be launched when the user presses the button. The Web App will be able to send an arbitrary message on behalf of the user using the method [answerWebAppQuery](https://core.telegram.org/bots/api#answerwebappquery). Available only in private chats between a user and the bot.
+    web_app: Option(WebAppInfo),
+    /// An HTTPS URL used to automatically authorize the user. Can be used as a replacement for the [Telegram Login Widget](https://core.telegram.org/widgets/login).
+    login_url: Option(LoginUrl),
     /// If set, pressing the button will prompt the user to select one of their chats, open that chat and insert the bot's username and the specified inline query in the input field. May be empty, in which case just the bot's username will be inserted.
     switch_inline_query: Option(String),
     /// set, pressing the button will insert the bot's username and the specified inline query in the current chat's input field. May be empty, in which case only the bot's username will be inserted.
     ///
     /// This offers a quick way for the user to open your bot in inline mode in the same chat - good for selecting something from multiple options.
     switch_inline_query_current_chat: Option(String),
+    /// If set, pressing the button will prompt the user to select one of their chats of the specified type, open that chat and insert the bot's username and the specified inline query in the input field
+    switch_inline_query_chosen_chat: Option(SwitchInlineQueryChosenChat),
     /// Specify True, to send a [Pay button](https://core.telegram.org/bots/api#payments).
     ///
     /// **NOTE**: This type of button **must** always be the first button in the first row and can only be used in invoice messages.
@@ -643,22 +759,73 @@ pub type InlineKeyboardMarkup {
   InlineKeyboardMarkup(inline_keyboard: List(List(InlineKeyboardButton)))
 }
 
-// TODO: implement the following types
-pub type Keyboard {
-  Keyboard
+pub fn encode_inline_keyboard_button(
+  inline_keyboard_button: InlineKeyboardButton,
+) -> Json {
+  let text = #("text", json.string(inline_keyboard_button.text))
+  let url = #("url", json.nullable(inline_keyboard_button.url, json.string))
+  let callback_data = #(
+    "callback_data",
+    json.nullable(inline_keyboard_button.callback_data, json.string),
+  )
+  let web_app = #(
+    "web_app",
+    json.nullable(inline_keyboard_button.web_app, encode_web_app_info),
+  )
+  let login_url = #(
+    "login_url",
+    json.nullable(inline_keyboard_button.login_url, encode_login_url),
+  )
+  let switch_inline_query = #(
+    "switch_inline_query",
+    json.nullable(inline_keyboard_button.switch_inline_query, json.string),
+  )
+  let switch_inline_query_current_chat = #(
+    "switch_inline_query_current_chat",
+    json.nullable(
+      inline_keyboard_button.switch_inline_query_current_chat,
+      json.string,
+    ),
+  )
+  let switch_inline_query_chosen_chat = #(
+    "switch_inline_query_chosen_chat",
+    json.nullable(
+      inline_keyboard_button.switch_inline_query_chosen_chat,
+      encode_switch_inline_query_chosen_chat,
+    ),
+  )
+  let pay = #("pay", json.nullable(inline_keyboard_button.pay, json.bool))
+
+  json_object_filter_nulls([
+    text,
+    url,
+    callback_data,
+    web_app,
+    login_url,
+    switch_inline_query,
+    switch_inline_query_current_chat,
+    switch_inline_query_chosen_chat,
+    pay,
+  ])
 }
 
 pub fn decode_inline_button(
   json: Dynamic,
 ) -> Result(InlineKeyboardButton, dynamic.DecodeErrors) {
   json
-  |> dynamic.decode6(
+  |> dynamic.decode9(
     InlineKeyboardButton,
     dynamic.field("text", dynamic.string),
     dynamic.optional_field("url", dynamic.string),
     dynamic.optional_field("callback_data", dynamic.string),
+    dynamic.optional_field("web_app", decode_web_app_info),
+    dynamic.optional_field("login_url", decode_login_url),
     dynamic.optional_field("switch_inline_query", dynamic.string),
     dynamic.optional_field("switch_inline_query_current_chat", dynamic.string),
+    dynamic.optional_field(
+      "switch_inline_query_chosen_chat",
+      decode_switch_inline_query_chosen_chat,
+    ),
     dynamic.optional_field("pay", dynamic.bool),
   )
 }
@@ -676,10 +843,288 @@ pub fn decode_inline_markup(
   )
 }
 
+// Keyboard ---------------------------------------------------------------------
+
+pub type KeyboardButton {
+  /// This object represents one button of the reply keyboard. For simple text buttons, String can be used instead of this object to specify the button text. The optional fields _web_app_, _request_users_, _request_chat_, _request_contact_, _request_location_, and _request_poll_ are mutually exclusive.
+  ///
+  /// **Official reference:** https://core.telegram.org/bots/api#keyboardbutton
+  KeyboardButton(
+    /// Text of the button. If none of the optional fields are used, it will be sent as a message when the button is pressed
+    text: String,
+    /// If specified, pressing the button will open a list of suitable users. Identifiers of selected users will be sent to the bot in a “users_shared” service message. Available in private chats only.
+    request_users: Option(KeyboardButtonRequestUsers),
+    /// If specified, pressing the button will open a list of suitable chats. Tapping on a chat will send its identifier to the bot in a “chat_shared” service message. Available in private chats only.
+    request_chat: Option(KeyboardButtonRequestChat),
+    /// If _True_, the user's phone number will be sent as a contact when the button is pressed. Available in private chats only.
+    request_contact: Option(Bool),
+    /// If _True_, the user's current location will be sent when the button is pressed. Available in private chats only.
+    request_location: Option(Bool),
+    /// If specified, the user will be asked to create a poll and send it to the bot when the button is pressed. Available in private chats only.
+    request_poll: Option(KeyboardButtonPollType),
+    /// If specified, the described [Web App](https://core.telegram.org/bots/webapps) will be launched when the button is pressed. The Web App will be able to send a “web_app_data” service message. Available in private chats only.
+    web_app: Option(WebAppInfo),
+  )
+}
+
+pub fn encode_keyboard_button(keyboard_button: KeyboardButton) -> Json {
+  let text = #("text", json.string(keyboard_button.text))
+  let request_users = #(
+    "request_users",
+    json.nullable(
+      keyboard_button.request_users,
+      encode_keyboard_button_request_users,
+    ),
+  )
+  let request_chat = #(
+    "request_chat",
+    json.nullable(
+      keyboard_button.request_chat,
+      encode_keyboard_button_request_chat,
+    ),
+  )
+  let request_contact = #(
+    "request_contact",
+    json.nullable(keyboard_button.request_contact, json.bool),
+  )
+  let request_location = #(
+    "request_location",
+    json.nullable(keyboard_button.request_location, json.bool),
+  )
+  let request_poll = #(
+    "request_poll",
+    json.nullable(
+      keyboard_button.request_poll,
+      encode_keyboard_button_poll_type,
+    ),
+  )
+  let web_app = #(
+    "web_app",
+    json.nullable(keyboard_button.web_app, encode_web_app_info),
+  )
+
+  json_object_filter_nulls([
+    text,
+    request_users,
+    request_chat,
+    request_contact,
+    request_location,
+    request_poll,
+    web_app,
+  ])
+}
+
+pub type KeyboardButtonRequestUsers {
+  /// This object defines the criteria used to request suitable users. Information about the selected users will be shared with the bot when the corresponding button is pressed.
+  ///
+  /// [More about requesting users](https://core.telegram.org/bots/features#chat-and-user-selection).
+  ///
+  /// **Official reference:** https://core.telegram.org/bots/api#keyboardbuttonrequestusers
+  KeyboardButtonRequestUsers(
+    /// Signed 32-bit identifier of the request that will be received back in the [UsersShared](https://core.telegram.org/bots/api#usersshared) object. Must be unique within the message
+    request_id: Int,
+    /// Pass _True_ to request bots, pass _False_ to request regular users. If not specified, no additional restrictions are applied.
+    user_is_bot: Option(Bool),
+    /// Pass _True_ to request premium users, pass _False_ to request non-premium users. If not specified, no additional restrictions are applied.
+    user_is_premium: Option(Bool),
+    /// The maximum number of users to be selected; 1-10. Defaults to 1.
+    max_quantity: Option(Int),
+    /// Pass _True_ to request the users' first and last name
+    request_name: Option(Bool),
+    /// Pass _True_ to request the users' username
+    request_username: Option(Bool),
+    /// Pass _True_ to request the users' photo
+    request_photo: Option(Bool),
+  )
+}
+
+pub fn encode_keyboard_button_request_users(
+  keyboard_button_request_users: KeyboardButtonRequestUsers,
+) -> Json {
+  let request_id = #(
+    "request_id",
+    json.int(keyboard_button_request_users.request_id),
+  )
+  let user_is_bot = #(
+    "user_is_bot",
+    json.nullable(keyboard_button_request_users.user_is_bot, json.bool),
+  )
+  let user_is_premium = #(
+    "user_is_premium",
+    json.nullable(keyboard_button_request_users.user_is_premium, json.bool),
+  )
+  let max_quantity = #(
+    "max_quantity",
+    json.nullable(keyboard_button_request_users.max_quantity, json.int),
+  )
+  let request_name = #(
+    "request_name",
+    json.nullable(keyboard_button_request_users.request_name, json.bool),
+  )
+  let request_username = #(
+    "request_username",
+    json.nullable(keyboard_button_request_users.request_username, json.bool),
+  )
+  let request_photo = #(
+    "request_photo",
+    json.nullable(keyboard_button_request_users.request_photo, json.bool),
+  )
+
+  json_object_filter_nulls([
+    request_id,
+    user_is_bot,
+    user_is_premium,
+    max_quantity,
+    request_name,
+    request_username,
+    request_photo,
+  ])
+}
+
+pub fn decode_keyboard_button_request_users(
+  json: Dynamic,
+) -> Result(KeyboardButtonRequestUsers, dynamic.DecodeErrors) {
+  json
+  |> dynamic.decode7(
+    KeyboardButtonRequestUsers,
+    dynamic.field("request_id", dynamic.int),
+    dynamic.optional_field("user_is_bot", dynamic.bool),
+    dynamic.optional_field("user_is_premium", dynamic.bool),
+    dynamic.optional_field("max_quantity", dynamic.int),
+    dynamic.optional_field("request_name", dynamic.bool),
+    dynamic.optional_field("request_username", dynamic.bool),
+    dynamic.optional_field("request_photo", dynamic.bool),
+  )
+}
+
+pub type KeyboardButtonRequestChat {
+  /// This object defines the criteria used to request a suitable chat. Information about the selected chat will be shared with the bot when the corresponding button is pressed. The bot will be granted requested rights in the сhat if appropriate
+  ///
+  /// [More about requesting chats](https://core.telegram.org/bots/features#chat-and-user-selection).
+  ///
+  /// **Official reference:** https://core.telegram.org/bots/api#keyboardbuttonrequestchat
+  KeyboardButtonRequestChat(
+    /// Signed 32-bit identifier of the request, which will be received back in the [ChatShared](https://core.telegram.org/bots/api#chatshared) object. Must be unique within the message
+    request_id: Int,
+    /// Pass _True_ to request a channel chat, pass _False_ to request a group or a supergroup chat.
+    chat_is_channel: Bool,
+    /// Pass _True_ to request a forum supergroup, pass _False_ to request a non-forum chat. If not specified, no additional restrictions are applied.
+    chat_is_forum: Option(Bool),
+    /// Pass _True_ to request a supergroup or a channel with a username, pass _False_ to request a chat without a username. If not specified, no additional restrictions are applied.
+    chat_has_username: Option(Bool),
+    /// Pass _True_ to request a chat owned by the user. Otherwise, no additional restrictions are applied.
+    chat_is_created: Option(Bool),
+    /// A JSON-serialized object listing the required administrator rights of the user in the chat. The rights must be a superset of _bot_administrator_rights_. If not specified, no additional restrictions are applied.
+    user_administrator_rights: Option(ChatAdministratorRights),
+    /// A JSON-serialized object listing the required administrator rights of the bot in the chat. The rights must be a subset of _user_administrator_rights_. If not specified, no additional restrictions are applied.
+    bot_administrator_rights: Option(ChatAdministratorRights),
+    /// Pass _True_ to request a chat with the bot as a member. Otherwise, no additional restrictions are applied.
+    bot_is_member: Option(Bool),
+    /// Pass _True_ to request the chat's title
+    request_title: Option(Bool),
+    /// Pass _True_ to request the chat's username
+    request_username: Option(Bool),
+    /// Pass _True_ to request the chat's photo
+    request_photo: Option(Bool),
+  )
+}
+
+pub fn encode_keyboard_button_request_chat(
+  keyboard_button_request_chat: KeyboardButtonRequestChat,
+) -> Json {
+  let request_id = #(
+    "request_id",
+    json.int(keyboard_button_request_chat.request_id),
+  )
+  let chat_is_channel = #(
+    "chat_is_channel",
+    json.bool(keyboard_button_request_chat.chat_is_channel),
+  )
+  let chat_is_forum = #(
+    "chat_is_forum",
+    json.nullable(keyboard_button_request_chat.chat_is_forum, json.bool),
+  )
+  let chat_has_username = #(
+    "chat_has_username",
+    json.nullable(keyboard_button_request_chat.chat_has_username, json.bool),
+  )
+  let chat_is_created = #(
+    "chat_is_created",
+    json.nullable(keyboard_button_request_chat.chat_is_created, json.bool),
+  )
+  let user_administrator_rights = #(
+    "user_administrator_rights",
+    json.nullable(
+      keyboard_button_request_chat.user_administrator_rights,
+      encode_chat_administrator_rights,
+    ),
+  )
+  let bot_administrator_rights = #(
+    "bot_administrator_rights",
+    json.nullable(
+      keyboard_button_request_chat.bot_administrator_rights,
+      encode_chat_administrator_rights,
+    ),
+  )
+  let bot_is_member = #(
+    "bot_is_member",
+    json.nullable(keyboard_button_request_chat.bot_is_member, json.bool),
+  )
+  let request_title = #(
+    "request_title",
+    json.nullable(keyboard_button_request_chat.request_title, json.bool),
+  )
+  let request_username = #(
+    "request_username",
+    json.nullable(keyboard_button_request_chat.request_username, json.bool),
+  )
+  let request_photo = #(
+    "request_photo",
+    json.nullable(keyboard_button_request_chat.request_photo, json.bool),
+  )
+
+  json_object_filter_nulls([
+    request_id,
+    chat_is_channel,
+    chat_is_forum,
+    chat_has_username,
+    chat_is_created,
+    user_administrator_rights,
+    bot_administrator_rights,
+    bot_is_member,
+    request_title,
+    request_username,
+    request_photo,
+  ])
+}
+
+pub type KeyboardButtonPollType {
+  /// This object represents type of a poll, which is allowed to be created and sent when the corresponding button is pressed.
+  ///
+  /// **Official reference:** https://core.telegram.org/bots/api#keyboardbuttonpolltype
+  KeyboardButtonPollType(
+    /// If quiz is passed, the user will be allowed to create only polls in the quiz mode. If regular is passed, only regular polls will be allowed. Otherwise, the user will be allowed to create a poll of any type.
+    ///
+    /// **Official reference:** https://core.telegram.org/bots/api#polltype
+    ///
+    /// **Note**: This type is a wrapper around the official type. The official field name is `type`.
+    poll_type: Option(String),
+  )
+}
+
+pub fn encode_keyboard_button_poll_type(
+  keyboard_button_poll_type: KeyboardButtonPollType,
+) -> Json {
+  json_object_filter_nulls([
+    #("type", json.nullable(keyboard_button_poll_type.poll_type, json.string)),
+  ])
+}
+
 // ReplyParameters ---------------------------------------------------------------------
 
 pub type ReplyParameters {
   /// Describes reply parameters for the message that is being sent.
+  ///
   /// **Official reference:** https://core.telegram.org/bots/api#replyparameters
   ReplyParameters(
     /// Identifier of the message that will be replied to in the current chat, or in the chat chat_id if it is specified
@@ -699,17 +1144,59 @@ pub type ReplyParameters {
   )
 }
 
+pub fn encode_reply_parameters(reply_parameters: ReplyParameters) -> Json {
+  let message_id = #("message_id", json.int(reply_parameters.message_id))
+  let chat_id = #(
+    "chat_id",
+    json.nullable(reply_parameters.chat_id, encode_int_or_string),
+  )
+  let allow_sending_without_reply = #(
+    "allow_sending_without_reply",
+    json.nullable(reply_parameters.allow_sending_without_reply, json.bool),
+  )
+  let quote = #("quote", json.nullable(reply_parameters.quote, json.string))
+  let quote_parse_mode = #(
+    "quote_parse_mode",
+    json.nullable(reply_parameters.quote_parse_mode, json.string),
+  )
+  let quote_entities = #(
+    "quote_entities",
+    json.nullable(reply_parameters.quote_entities, json.array(
+      _,
+      encode_message_entity,
+    )),
+  )
+  let quote_position = #(
+    "quote_position",
+    json.nullable(reply_parameters.quote_position, json.int),
+  )
+
+  json_object_filter_nulls([
+    message_id,
+    chat_id,
+    allow_sending_without_reply,
+    quote,
+    quote_parse_mode,
+    quote_entities,
+    quote_position,
+  ])
+}
+
+// ReplyMarkup ---------------------------------------------------------------------
 pub type ReplyMarkup {
   /// This object represents an inline keyboard that appears right next to the message it belongs to.
+  ///
   /// **Official reference:** https://core.telegram.org/bots/api#inlinekeyboardmarkup
   ReplyInlineKeyboardMarkup(
     /// List of button rows, each represented by an List of [InlineKeyboardButton](https://core.telegram.org/bots/api#inlinekeyboardbutton) objects
     inline_keyboard: List(List(InlineKeyboardButton)),
   )
   /// This object represents a [custom keyboard](https://core.telegram.org/bots/features#keyboards) with reply options (see [Introduction to bots](https://core.telegram.org/bots/features#keyboards) for details and examples).
+  ///
+  /// **Official reference:** https://core.telegram.org/bots/api#replykeyboardmarkup
   ReplyKeyboardMarkup(
     /// Array of button rows, each represented by an Array of [KeyboardButton](https://core.telegram.org/bots/api#keyboardbutton) objects
-    keyboard: List(List(Keyboard)),
+    keyboard: List(List(KeyboardButton)),
     /// Requests clients to always show the keyboard when the regular keyboard is hidden. Defaults to _false_, in which case the custom keyboard can be hidden and opened with a keyboard icon.
     is_persistent: Option(Bool),
     /// Requests clients to resize the keyboard vertically for optimal fit (e.g., make the keyboard smaller if there are just two rows of buttons). Defaults to _false_, in which case the custom keyboard is always of the same height as the app's standard keyboard.
@@ -724,6 +1211,8 @@ pub type ReplyMarkup {
     selective: Option(Bool),
   )
   /// Upon receiving a message with this object, Telegram clients will remove the current custom keyboard and display the default letter-keyboard. By default, custom keyboards are displayed until a new keyboard is sent by a bot. An exception is made for one-time keyboards that are hidden immediately after the user presses a button (see [ReplyKeyboardMarkup](https://core.telegram.org/bots/api#replykeyboardmarkup)).
+  ///
+  /// **Official reference:** https://core.telegram.org/bots/api#replykeyboardremove
   ReplyKeyboardRemove(
     /// Requests clients to remove the custom keyboard (user will not be able to summon this keyboard; if you want to hide the keyboard from sight but keep it accessible, use _one_time_keyboard_ in [ReplyKeyboardMarkup](https://core.telegram.org/bots/api#replykeyboardmarkup))
     remove_keyboard: Bool,
@@ -732,54 +1221,65 @@ pub type ReplyMarkup {
     /// _Example_: A user requests to change the bot's language, bot replies to the request with a keyboard to select the new language. Other users in the group don't see the keyboard.
     selective: Option(Bool),
   )
+  /// Upon receiving a message with this object, Telegram clients will display a reply interface to the user (act as if the user has selected the bot's message and tapped 'Reply'). This can be extremely useful if you want to create user-friendly step-by-step interfaces without having to sacrifice [privacy mode](https://core.telegram.org/bots/features#privacy-mode).
+  ///
+  /// **Official reference:** https://core.telegram.org/bots/api#forcereply
+  ForceReply(
+    /// Shows reply interface to the user, as if they manually selected the bot's message and tapped 'Reply'
+    force_reply: Bool,
+    /// The placeholder to be shown in the input field when the reply is active; 1-64 characters
+    input_field_placeholder: String,
+    /// Use this parameter if you want to force reply from specific users only. Targets: 1) users that are @mentioned in the text of the [Message](https://core.telegram.org/bots/api#message) object; 2) if the bot's message is a reply to a message in the same chat and forum topic, sender of the original message.
+    selective: Bool,
+  )
 }
 
-pub fn encode_reply_parameters(reply_parameters: ReplyParameters) -> Json {
-  let message_id = [#("message_id", json.int(reply_parameters.message_id))]
-  let chat_id =
-    option_to_json_object_list(
-      reply_parameters.chat_id,
-      "chat_id",
-      string_or_int_to_json,
-    )
-  let allow_sending_without_reply =
-    option_to_json_object_list(
-      reply_parameters.allow_sending_without_reply,
-      "allow_sending_without_reply",
-      json.bool,
-    )
-  let quote =
-    option_to_json_object_list(reply_parameters.quote, "quote", json.string)
-  let quote_parse_mode =
-    option_to_json_object_list(
-      reply_parameters.quote_parse_mode,
-      "quote_parse_mode",
-      json.string,
-    )
-  let quote_entities =
-    option_to_json_object_list(
-      reply_parameters.quote_entities,
-      "quote_entities",
-      json.array(_, encode_message_entity),
-    )
-  let quote_position =
-    option_to_json_object_list(
-      reply_parameters.quote_position,
-      "quote_position",
-      json.int,
-    )
-
-  [
-    message_id,
-    chat_id,
-    allow_sending_without_reply,
-    quote,
-    quote_parse_mode,
-    quote_entities,
-    quote_position,
-  ]
-  |> list.concat
-  |> json.object
+pub fn encode_reply_markup(reply_markup: ReplyMarkup) -> Json {
+  case reply_markup {
+    ReplyInlineKeyboardMarkup(inline_keyboard) ->
+      json_object_filter_nulls([
+        #(
+          "inline_keyboard",
+          json.array(inline_keyboard, json.array(
+            _,
+            encode_inline_keyboard_button,
+          )),
+        ),
+      ])
+    ReplyKeyboardMarkup(
+      keyboard,
+      is_persistent,
+      resize_keyboard,
+      one_time_keyboard,
+      input_field_placeholder,
+      selective,
+    ) ->
+      json_object_filter_nulls([
+        #(
+          "keyboard",
+          json.array(keyboard, json.array(_, encode_keyboard_button)),
+        ),
+        #("is_persistent", json.nullable(is_persistent, json.bool)),
+        #("resize_keyboard", json.nullable(resize_keyboard, json.bool)),
+        #("one_time_keyboard", json.nullable(one_time_keyboard, json.bool)),
+        #(
+          "input_field_placeholder",
+          json.nullable(input_field_placeholder, json.string),
+        ),
+        #("selective", json.nullable(selective, json.bool)),
+      ])
+    ReplyKeyboardRemove(remove_keyboard, selective) ->
+      json_object_filter_nulls([
+        #("remove_keyboard", json.bool(remove_keyboard)),
+        #("selective", json.nullable(selective, json.bool)),
+      ])
+    ForceReply(force_reply, input_field_placeholder, selective) ->
+      json_object_filter_nulls([
+        #("force_reply", json.bool(force_reply)),
+        #("input_field_placeholder", json.string(input_field_placeholder)),
+        #("selective", json.bool(selective)),
+      ])
+  }
 }
 
 // SendDice ------------------------------------------------------------------------------------------------------------
@@ -812,43 +1312,33 @@ pub fn new_send_dice_parameters(chat_id chat_id: Int) -> SendDiceParameters {
 }
 
 pub fn encode_send_dice_parameters(params: SendDiceParameters) -> Json {
-  let chat_id = [#("chat_id", json.int(params.chat_id))]
-  let message_thread_id =
-    option_to_json_object_list(
-      params.message_thread_id,
-      "message_thread_id",
-      json.int,
-    )
-  let emoji = option_to_json_object_list(params.emoji, "emoji", json.string)
-  let disable_notification =
-    option_to_json_object_list(
-      params.disable_notification,
-      "disable_notification",
-      json.bool,
-    )
-  let protect_content =
-    option_to_json_object_list(
-      params.protect_content,
-      "protect_content",
-      json.bool,
-    )
-  let reply_parameters =
-    option_to_json_object_list(
-      params.reply_parameters,
-      "reply_parameters",
-      encode_reply_parameters,
-    )
+  let chat_id = #("chat_id", json.int(params.chat_id))
+  let message_thread_id = #(
+    "message_thread_id",
+    json.nullable(params.message_thread_id, json.int),
+  )
+  let emoji = #("emoji", json.nullable(params.emoji, json.string))
+  let disable_notification = #(
+    "disable_notification",
+    json.nullable(params.disable_notification, json.bool),
+  )
+  let protect_content = #(
+    "protect_content",
+    json.nullable(params.protect_content, json.bool),
+  )
+  let reply_parameters = #(
+    "reply_parameters",
+    json.nullable(params.reply_parameters, encode_reply_parameters),
+  )
 
-  [
+  json_object_filter_nulls([
     chat_id,
     message_thread_id,
     emoji,
     disable_notification,
     protect_content,
     reply_parameters,
-  ]
-  |> list.concat
-  |> json.object
+  ])
 }
 
 // WebhookInfo --------------------------------------------------------------------------------------------------------
@@ -897,25 +1387,370 @@ pub fn decode_webhook_info(
   )
 }
 
+// WebAppInfo --------------------------------------------------------------------------------------------------------
+
+pub type WebAppInfo {
+  /// Describes a [Web App](https://core.telegram.org/bots/webapps).
+  ///
+  /// **Official reference:** [WebAppInfo](https://core.telegram.org/bots/api#webappinfo)
+  WebAppInfo(
+    /// An HTTPS URL of a Web App to be opened with additional data as specified in [Initializing Web Apps](https://core.telegram.org/bots/webapps#initializing-mini-apps)
+    url: String,
+  )
+}
+
+pub fn encode_web_app_info(info: WebAppInfo) -> Json {
+  json_object_filter_nulls([#("url", json.string(info.url))])
+}
+
+pub fn decode_web_app_info(
+  json: Dynamic,
+) -> Result(WebAppInfo, dynamic.DecodeErrors) {
+  json
+  |> dynamic.decode1(WebAppInfo, dynamic.field("url", dynamic.string))
+}
+
+// WebAppData --------------------------------------------------------------------------------------------------------
+
+pub type WebAppData {
+  /// Describes data sent from a [Web App](https://core.telegram.org/bots/webapps) to the bot.
+  WebAppData(
+    /// The data. Be aware that a bad client can send arbitrary data in this field.
+    data: String,
+    /// Text of the _web_app_ keyboard button from which the Web App was opened. Be aware that a bad client can send arbitrary data in this field.
+    button_text: String,
+  )
+}
+
+pub fn decode_web_app_data(
+  json: Dynamic,
+) -> Result(WebAppData, dynamic.DecodeErrors) {
+  json
+  |> dynamic.decode2(
+    WebAppData,
+    dynamic.field("data", dynamic.string),
+    dynamic.field("button_text", dynamic.string),
+  )
+}
+
+// LoginUrl ----------------------------------------------------------------------------------------------------------
+
+pub type LoginUrl {
+  /// This object represents a parameter of the inline keyboard button used to automatically authorize a user. Serves as a great replacement for the [Telegram Login Widget](https://core.telegram.org/widgets/login) when the user is coming from Telegram. All the user needs to do is tap/click a button and confirm that they want to log in.
+  LoginUrl(
+    /// An HTTPS URL to be opened with user authorization data added to the query string when the button is pressed. If the user refuses to provide authorization data, the original URL without information about the user will be opened. The data added is the same as described in [Receiving authorization data](https://core.telegram.org/widgets/login#receiving-authorization-data).
+    ///
+    /// NOTE: You must always check the hash of the received data to verify the authentication and the integrity of the data as described in [Checking authorization](https://core.telegram.org/widgets/login#checking-authorization).
+    url: String,
+    /// New text of the button in forwarded messages.
+    forward_text: Option(String),
+    /// Username of a bot, which will be used for user authorization. [See Setting up a bot](https://core.telegram.org/widgets/login#setting-up-a-bot) for more details. If not specified, the current bot's username will be assumed. The url's domain must be the same as the domain linked with the bot. See [Linking your domain to the bot](https://core.telegram.org/widgets/login#linking-your-domain-to-the-bot) for more details.
+    bot_username: Option(String),
+    /// Pass _True_ to request the permission for your bot to send messages to the user.
+    request_write_access: Option(Bool),
+  )
+}
+
+pub fn encode_login_url(login_url: LoginUrl) -> Json {
+  let url = #("url", json.string(login_url.url))
+  let forward_text = #(
+    "forward_text",
+    json.nullable(login_url.forward_text, json.string),
+  )
+  let bot_username = #(
+    "bot_username",
+    json.nullable(login_url.bot_username, json.string),
+  )
+  let request_write_access = #(
+    "request_write_access",
+    json.nullable(login_url.request_write_access, json.bool),
+  )
+
+  json_object_filter_nulls([
+    url,
+    forward_text,
+    bot_username,
+    request_write_access,
+  ])
+}
+
+pub fn decode_login_url(json: Dynamic) -> Result(LoginUrl, dynamic.DecodeErrors) {
+  json
+  |> dynamic.decode4(
+    LoginUrl,
+    dynamic.field("url", dynamic.string),
+    dynamic.optional_field("forward_text", dynamic.string),
+    dynamic.optional_field("bot_username", dynamic.string),
+    dynamic.optional_field("request_write_access", dynamic.bool),
+  )
+}
+
+// SwitchInlineQueryChosenChat ---------------------------------------------------------------------------------------
+
+pub type SwitchInlineQueryChosenChat {
+  /// This object represents an inline button that switches the current user to inline mode in a chosen chat, with an optional default inline query.
+  SwitchInlineQueryChosenChat(
+    /// The default inline query to be inserted in the input field. If left empty, only the bot's username will be inserted
+    query: Option(String),
+    /// True, if private chats with users can be chosen
+    allow_user_chats: Option(Bool),
+    /// True, if private chats with bots can be chosen
+    allow_bot_chats: Option(Bool),
+    /// True, if group and supergroup chats can be chosen
+    allow_group_chats: Option(Bool),
+    /// True, if channel chats can be chosen
+    allow_channel_chats: Option(Bool),
+  )
+}
+
+pub fn encode_switch_inline_query_chosen_chat(
+  switch_inline_query_chosen_chat: SwitchInlineQueryChosenChat,
+) -> Json {
+  let query = #(
+    "query",
+    json.nullable(switch_inline_query_chosen_chat.query, json.string),
+  )
+  let allow_user_chats = #(
+    "allow_user_chats",
+    json.nullable(switch_inline_query_chosen_chat.allow_user_chats, json.bool),
+  )
+  let allow_bot_chats = #(
+    "allow_bot_chats",
+    json.nullable(switch_inline_query_chosen_chat.allow_bot_chats, json.bool),
+  )
+  let allow_group_chats = #(
+    "allow_group_chats",
+    json.nullable(switch_inline_query_chosen_chat.allow_group_chats, json.bool),
+  )
+  let allow_channel_chats = #(
+    "allow_channel_chats",
+    json.nullable(
+      switch_inline_query_chosen_chat.allow_channel_chats,
+      json.bool,
+    ),
+  )
+
+  json_object_filter_nulls([
+    query,
+    allow_user_chats,
+    allow_bot_chats,
+    allow_group_chats,
+    allow_channel_chats,
+  ])
+}
+
+pub fn decode_switch_inline_query_chosen_chat(
+  json: Dynamic,
+) -> Result(SwitchInlineQueryChosenChat, dynamic.DecodeErrors) {
+  json
+  |> dynamic.decode5(
+    SwitchInlineQueryChosenChat,
+    dynamic.optional_field("query", dynamic.string),
+    dynamic.optional_field("allow_user_chats", dynamic.bool),
+    dynamic.optional_field("allow_bot_chats", dynamic.bool),
+    dynamic.optional_field("allow_group_chats", dynamic.bool),
+    dynamic.optional_field("allow_channel_chats", dynamic.bool),
+  )
+}
+
+// ChatAdministratorRights -------------------------------------------------------------------------------------------
+
+pub type ChatAdministratorRights {
+  /// Represents the rights of an administrator in a chat.
+  ///
+  /// **Official reference:** [ChatAdministratorRights](https://core.telegram.org/bots/api#chatadministratorrights)
+  ChatAdministratorRights(
+    /// _True_, if the user's presence in the chat is hidden
+    is_anonymous: Bool,
+    /// _True_, if the administrator can access the chat event log, get boost list, see hidden supergroup and channel members, report spam messages and ignore slow mode. Implied by any other administrator privilege.
+    can_manage_chat: Bool,
+    /// _True_, if the administrator can delete messages of other users
+    can_delete_messages: Bool,
+    /// _True_, if the administrator can manage video chats
+    can_manage_voice_chats: Bool,
+    /// _True_, if the administrator can restrict, ban or unban chat members, or access supergroup statistics
+    can_restrict_members: Bool,
+    /// _True_, if the administrator can add new administrators with a subset of their own privileges or demote administrators that they have promoted, directly or indirectly (promoted by administrators that were appointed by the user)
+    can_promote_members: Bool,
+    /// _True_, if the user is allowed to change the chat title, photo and other settings
+    can_change_info: Bool,
+    /// _True_, if the user is allowed to invite new users to the chat
+    can_invite_users: Bool,
+    /// _True_, if the administrator can post stories to the chat
+    can_post_stories: Bool,
+    /// _True_, if the administrator can edit stories posted by other users
+    can_edit_stories: Bool,
+    /// _True_, if the administrator can delete stories posted by other users
+    can_delete_stories: Bool,
+    /// _True_, if the administrator can post messages in the channel, or access channel statistics; for channels only
+    can_post_messages: Option(Bool),
+    /// _True_, if the administrator can edit messages of other users and can pin messages; for channels only
+    can_edit_messages: Option(Bool),
+    /// _True_, if the user is allowed to pin messages; for groups and supergroups only
+    can_pin_messages: Option(Bool),
+    /// _True_, if the user is allowed to create, rename, close, and reopen forum topics; for supergroups only
+    can_manage_topics: Option(Bool),
+  )
+}
+
+pub fn encode_chat_administrator_rights(
+  chat_administrator_rights: ChatAdministratorRights,
+) -> Json {
+  let is_anonymous = #(
+    "is_anonymous",
+    json.bool(chat_administrator_rights.is_anonymous),
+  )
+
+  let can_manage_chat = #(
+    "can_manage_chat",
+    json.bool(chat_administrator_rights.can_manage_chat),
+  )
+  let can_delete_messages = #(
+    "can_delete_messages",
+    json.bool(chat_administrator_rights.can_delete_messages),
+  )
+  let can_manage_voice_chats = #(
+    "can_manage_voice_chats",
+    json.bool(chat_administrator_rights.can_manage_voice_chats),
+  )
+  let can_restrict_members = #(
+    "can_restrict_members",
+    json.bool(chat_administrator_rights.can_restrict_members),
+  )
+  let can_promote_members = #(
+    "can_promote_members",
+    json.bool(chat_administrator_rights.can_promote_members),
+  )
+  let can_change_info = #(
+    "can_change_info",
+    json.bool(chat_administrator_rights.can_change_info),
+  )
+  let can_invite_users = #(
+    "can_invite_users",
+    json.bool(chat_administrator_rights.can_invite_users),
+  )
+  let can_post_stories = #(
+    "can_post_stories",
+    json.bool(chat_administrator_rights.can_post_stories),
+  )
+  let can_edit_stories = #(
+    "can_edit_stories",
+    json.bool(chat_administrator_rights.can_edit_stories),
+  )
+  let can_delete_stories = #(
+    "can_delete_stories",
+    json.bool(chat_administrator_rights.can_delete_stories),
+  )
+  let can_post_messages = #(
+    "can_post_messages",
+    json.nullable(chat_administrator_rights.can_post_messages, json.bool),
+  )
+  let can_edit_messages = #(
+    "can_edit_messages",
+    json.nullable(chat_administrator_rights.can_edit_messages, json.bool),
+  )
+  let can_pin_messages = #(
+    "can_pin_messages",
+    json.nullable(chat_administrator_rights.can_pin_messages, json.bool),
+  )
+  let can_manage_topics = #(
+    "can_manage_topics",
+    json.nullable(chat_administrator_rights.can_manage_topics, json.bool),
+  )
+
+  json_object_filter_nulls([
+    is_anonymous,
+    can_manage_chat,
+    can_delete_messages,
+    can_manage_voice_chats,
+    can_restrict_members,
+    can_promote_members,
+    can_change_info,
+    can_invite_users,
+    can_post_stories,
+    can_edit_stories,
+    can_delete_stories,
+    can_post_messages,
+    can_edit_messages,
+    can_pin_messages,
+    can_manage_topics,
+  ])
+}
+
+// LinkPreviewOptions ------------------------------------------------------------------------------------------------
+
+pub type LinkPreviewOptions {
+  /// Describes the options used for link preview generation.
+  ///
+  /// **Official reference:** [LinkPreviewOptions](https://core.telegram.org/bots/api#linkpreviewoptions)
+  LinkPreviewOptions(
+    /// _True_, if the link preview is disabled
+    is_disabled: Option(Bool),
+    /// URL to use for the link preview. If empty, then the first URL found in the message text will be used
+    url: Option(String),
+    /// _True_, if the media in the link preview is supposed to be shrunk; ignored if the URL isn't explicitly specified or media size change isn't supported for the preview
+    prefer_small_media: Option(Bool),
+    /// _True_, if the media in the link preview is supposed to be enlarged; ignored if the URL isn't explicitly specified or media size change isn't supported for the preview
+    prefer_large_media: Option(Bool),
+    /// _True_, if the link preview must be shown above the message text; otherwise, the link preview will be shown below the message text
+    show_above_text: Option(Bool),
+  )
+}
+
+pub fn encode_link_preview_options(
+  link_preview_options: LinkPreviewOptions,
+) -> Json {
+  json_object_filter_nulls([
+    #("is_disabled", json.nullable(link_preview_options.is_disabled, json.bool)),
+    #("url", json.nullable(link_preview_options.url, json.string)),
+    #(
+      "prefer_small_media",
+      json.nullable(link_preview_options.prefer_small_media, json.bool),
+    ),
+    #(
+      "prefer_large_media",
+      json.nullable(link_preview_options.prefer_large_media, json.bool),
+    ),
+    #(
+      "show_above_text",
+      json.nullable(link_preview_options.show_above_text, json.bool),
+    ),
+  ])
+}
+
 // Common ------------------------------------------------------------------------------------------------------------
 
 pub type IntOrString {
-  Int(Int)
-  String(String)
+  Inted(Int)
+  Stringed(String)
 }
 
-fn string_or_int_to_json(value: IntOrString) -> Json {
+fn encode_int_or_string(value: IntOrString) -> Json {
   case value {
-    Int(value) -> json.int(value)
-    String(value) -> json.string(value)
+    Inted(value) -> json.int(value)
+    Stringed(value) -> json.string(value)
   }
 }
 
-fn option_to_json_object_list(
-  value value: Option(a),
-  field field: String,
-  encoder encoder: fn(a) -> Json,
-) -> List(#(String, Json)) {
-  option.map(value, fn(v) { [#(field, encoder(v))] })
-  |> option.unwrap([])
+fn all_errors(
+  result: Result(a, List(dynamic.DecodeError)),
+) -> List(dynamic.DecodeError) {
+  case result {
+    Ok(_) -> []
+    Error(errors) -> errors
+  }
+}
+
+fn json_object_filter_nulls(entries: List(#(String, Json))) -> Json {
+  let null = json.null()
+
+  entries
+  |> list.filter(fn(entry) {
+    let #(_, value) = entry
+    case value == null {
+      True -> False
+      False -> True
+    }
+  })
+  |> json.object
 }

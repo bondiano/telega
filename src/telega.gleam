@@ -456,7 +456,7 @@ fn handle_bot_instanse_message(
   bot: BotInstanse(session),
 ) {
   case message {
-    HandleBotInstanseMessage(message) -> {
+    HandleBotInstanseMessage(message) ->
       case do_bot_handle_update(bot, message, bot.handlers) {
         Ok(new_session) ->
           actor.continue(BotInstanse(..bot, session: new_session))
@@ -465,7 +465,6 @@ fn handle_bot_instanse_message(
           actor.Stop(process.Normal)
         }
       }
-    }
   }
 }
 
@@ -528,14 +527,13 @@ fn do_bot_handle_update(
             message,
             rest,
           )
-        Error(e) -> {
+        Error(e) ->
           Error(
             "Failed to handle message: \n"
             <> string.inspect(message)
             <> "\n"
             <> e,
           )
-        }
       }
     }
     [] -> bot.session_settings.persist_session(bot.key, bot.session)
