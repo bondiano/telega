@@ -8,12 +8,14 @@ import gleam/http/response.{type Response, Response}
 import gleam/http.{Get, Post}
 import gleam/option.{type Option, None, Some}
 import gleam/dynamic.{type DecodeError, type Dynamic}
-import telega/bot.{type Bot, type Context, Context} as telega_bot
+import telega/config.{type Config}
 import telega/model.{
-  type BotCommand, type BotCommandParameters, type Message,
-  type SendDiceParameters, type SendMessageParameters, type User,
-  type WebhookInfo,
+  type AnswerCallbackQueryParameters, type BotCommand, type BotCommandParameters,
+  type EditMessageTextParameters, type EditMessageTextResult,
+  type Message as ModelMessage, type ReplyMarkup, type SendDiceParameters,
+  type SendMessageParameters, type User, type WebhookInfo,
 }
+import telega/bot.{type Context}
 import telega/log
 
 const default_retry_delay = 1000
@@ -35,45 +37,47 @@ type ApiResponse(result) {
 /// Set the webhook URL using [setWebhook](https://core.telegram.org/bots/api#setwebhook) API.
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#setwebhook
-pub fn set_webhook(bot: Bot) -> Result(Bool, String) {
+pub fn set_webhook(config config: Config) -> Result(Bool, String) {
   let webhook_url =
-    telega_bot.get_server_url(bot) <> "/" <> telega_bot.get_webhook_path(bot)
+    config.get_server_url(config) <> "/" <> config.get_webhook_path(config)
   let query = [
     #("url", webhook_url),
-    #("secret_token", telega_bot.get_secret_token(bot)),
+    #("secret_token", config.get_secret_token(config)),
   ]
 
-  new_get_request(bot, path: "setWebhook", query: Some(query))
-  |> fetch(bot)
+  new_get_request(config, path: "setWebhook", query: Some(query))
+  |> fetch(config)
   |> map_resonse(dynamic.bool)
 }
 
 /// Use this method to get current webhook status.
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#getwebhookinfo
-pub fn get_webhook_info(bot: Bot) -> Result(WebhookInfo, String) {
-  new_get_request(bot, path: "getWebhookInfo", query: None)
-  |> fetch(bot)
+pub fn get_webhook_info(config config: Config) -> Result(WebhookInfo, String) {
+  new_get_request(config, path: "getWebhookInfo", query: None)
+  |> fetch(config)
   |> map_resonse(model.decode_webhook_info)
 }
 
 /// Use this method to remove webhook integration if you decide to switch back to [getUpdates](https://core.telegram.org/bots/api#getupdates).
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#deletewebhook
-pub fn delete_webhook(bot: Bot) -> Result(Bool, String) {
-  new_get_request(bot, path: "deleteWebhook", query: None)
-  |> fetch(bot)
+pub fn delete_webhook(config config: Config) -> Result(Bool, String) {
+  new_get_request(config, path: "deleteWebhook", query: None)
+  |> fetch(config)
   |> map_resonse(dynamic.bool)
 }
 
 /// The same as [delete_webhook](#delete_webhook) but also drops all pending updates.
-pub fn delete_webhook_and_drop_updates(bot: Bot) -> Result(Bool, String) {
+pub fn delete_webhook_and_drop_updates(
+  config config: Config,
+) -> Result(Bool, String) {
   new_get_request(
-    bot,
+    config,
     path: "deleteWebhook",
     query: Some([#("drop_pending_updates", "true")]),
   )
-  |> fetch(bot)
+  |> fetch(config)
   |> map_resonse(dynamic.bool)
 }
 
@@ -82,9 +86,9 @@ pub fn delete_webhook_and_drop_updates(bot: Bot) -> Result(Bool, String) {
 /// After a successful call, you can immediately log in on a local server, but will not be able to log in back to the cloud Bot API server for 10 minutes.
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#logout
-pub fn log_out(bot: Bot) -> Result(Bool, String) {
-  new_get_request(bot, path: "logOut", query: None)
-  |> fetch(bot)
+pub fn log_out(config config: Config) -> Result(Bool, String) {
+  new_get_request(config, path: "logOut", query: None)
+  |> fetch(config)
   |> map_resonse(dynamic.bool)
 }
 
@@ -93,9 +97,9 @@ pub fn log_out(bot: Bot) -> Result(Bool, String) {
 /// The method will return error 429 in the first 10 minutes after the bot is launched.
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#close
-pub fn close(bot: Bot) -> Result(Bool, String) {
-  new_get_request(bot, path: "close", query: None)
-  |> fetch(bot)
+pub fn close(config config: Config) -> Result(Bool, String) {
+  new_get_request(config, path: "close", query: None)
+  |> fetch(config)
   |> map_resonse(dynamic.bool)
 }
 
@@ -105,13 +109,31 @@ pub fn close(bot: Bot) -> Result(Bool, String) {
 pub fn reply(
   ctx ctx: Context(session),
   text text: String,
-) -> Result(Message, String) {
+) -> Result(ModelMessage, String) {
   reply_with_parameters(
-    ctx,
+    ctx.config,
     parameters: model.new_send_message_parameters(
       text: text,
-      chat_id: model.Inted(ctx.message.raw.chat.id),
+      chat_id: model.Stringed(ctx.key),
     ),
+  )
+}
+
+/// Use this method to send text messages with keyboard markup.
+///
+/// **Official reference:** https://core.telegram.org/bots/api#sendmessage
+pub fn reply_with_markup(
+  ctx ctx: Context(session),
+  text text: String,
+  markup reply_markup: ReplyMarkup,
+) {
+  reply_with_parameters(
+    ctx.config,
+    parameters: model.new_send_message_parameters(
+        text: text,
+        chat_id: model.Stringed(ctx.key),
+      )
+      |> model.set_send_message_parameters_reply_markup(reply_markup),
   )
 }
 
@@ -119,18 +141,18 @@ pub fn reply(
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#sendmessage
 pub fn reply_with_parameters(
-  ctx ctx: Context(session),
+  config config: Config,
   parameters parameters: SendMessageParameters,
-) -> Result(Message, String) {
+) -> Result(ModelMessage, String) {
   let body_json = model.encode_send_message_parameters(parameters)
 
   new_post_request(
-    ctx.bot,
+    config,
     path: "sendMessage",
     body: json.to_string(body_json),
     query: None,
   )
-  |> fetch(ctx.bot)
+  |> fetch(config)
   |> map_resonse(model.decode_message)
 }
 
@@ -138,7 +160,7 @@ pub fn reply_with_parameters(
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#setmycommands
 pub fn set_my_commands(
-  ctx ctx: Context(session),
+  config config: Config,
   commands commands: List(BotCommand),
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(Bool, String) {
@@ -161,12 +183,12 @@ pub fn set_my_commands(
     ])
 
   new_post_request(
-    ctx.bot,
+    config,
     path: "setMyCommands",
     body: json.to_string(body_json),
     query: None,
   )
-  |> fetch(ctx.bot)
+  |> fetch(config)
   |> map_resonse(dynamic.bool)
 }
 
@@ -175,7 +197,7 @@ pub fn set_my_commands(
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#deletemycommands
 pub fn delete_my_commands(
-  ctx: Context(session),
+  config config: Config,
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(Bool, String) {
   let parameters =
@@ -185,12 +207,12 @@ pub fn delete_my_commands(
   let body_json = json.object(parameters)
 
   new_post_request(
-    ctx.bot,
+    config,
     path: "deleteMyCommands",
     body: json.to_string(body_json),
     query: None,
   )
-  |> fetch(ctx.bot)
+  |> fetch(config)
   |> map_resonse(dynamic.bool)
 }
 
@@ -198,7 +220,7 @@ pub fn delete_my_commands(
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#getmycommands
 pub fn get_my_commands(
-  ctx: Context(session),
+  config config: Config,
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(List(BotCommand), String) {
   let parameters =
@@ -208,12 +230,12 @@ pub fn get_my_commands(
   let body_json = json.object(parameters)
 
   new_post_request(
-    ctx.bot,
+    config,
     path: "getMyCommands",
     query: None,
     body: json.to_string(body_json),
   )
-  |> fetch(ctx.bot)
+  |> fetch(config)
   |> map_resonse(model.decode_bot_command)
 }
 
@@ -221,54 +243,98 @@ pub fn get_my_commands(
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#senddice
 pub fn send_dice(
-  ctx: Context(session),
+  ctx ctx: Context(session),
   parameters parameters: Option(SendDiceParameters),
-) -> Result(Message, String) {
+) -> Result(ModelMessage, String) {
   let body_json =
     parameters
     |> option.lazy_unwrap(fn() {
-      model.new_send_dice_parameters(ctx.message.raw.chat.id)
+      model.new_send_dice_parameters(model.Stringed(ctx.key))
     })
     |> model.encode_send_dice_parameters
 
   new_post_request(
-    bot: ctx.bot,
+    config: ctx.config,
     path: "sendDice",
     query: None,
     body: json.to_string(body_json),
   )
-  |> fetch(ctx.bot)
+  |> fetch(ctx.config)
   |> map_resonse(model.decode_message)
 }
 
 /// A simple method for testing your bot's authentication token.
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#getme
-pub fn get_me(ctx: Context(session)) -> Result(User, String) {
-  new_get_request(ctx.bot, path: "getMe", query: None)
-  |> fetch(ctx.bot)
+pub fn get_me(ctx ctx: Context(session)) -> Result(User, String) {
+  new_get_request(ctx.config, path: "getMe", query: None)
+  |> fetch(ctx.config)
   |> map_resonse(model.decode_user)
 }
 
-fn build_url(bot: Bot, path: String) -> String {
-  telega_bot.get_tg_api_url(bot) <> telega_bot.get_token(bot) <> "/" <> path
+/// Use this method to send answers to callback queries sent from inline keyboards.
+/// The answer will be displayed to the user as a notification at the top of the chat screen or as an alert.
+/// On success, _True_ is returned.
+///
+/// **Official reference:** https://core.telegram.org/bots/api#answercallbackquery
+pub fn answer_callback_query(
+  ctx ctx: Context(session),
+  parameters parameters: AnswerCallbackQueryParameters,
+) -> Result(Bool, String) {
+  let body_json = model.encode_answer_callback_query_parameters(parameters)
+
+  new_post_request(
+    config: ctx.config,
+    path: "answerCallbackQuery",
+    query: None,
+    body: json.to_string(body_json),
+  )
+  |> fetch(ctx.config)
+  |> map_resonse(dynamic.bool)
+}
+
+/// Use this method to edit text and game messages.
+/// On success, if the edited message is not an inline message, the edited Message is returned, otherwise True is returned.
+///
+/// **Official reference:** https://core.telegram.org/bots/api#editmessagetext
+pub fn edit_message_text(
+  ctx ctx: Context(session),
+  parameters parameters: EditMessageTextParameters,
+) -> Result(EditMessageTextResult, String) {
+  let body_json = model.encode_edit_message_text_parameters(parameters)
+
+  new_post_request(
+    config: ctx.config,
+    path: "editMessageText",
+    query: None,
+    body: json.to_string(body_json),
+  )
+  |> fetch(ctx.config)
+  |> map_resonse(model.decode_edit_message_text_result)
+}
+
+fn build_url(configuration: Config, path: String) -> String {
+  config.get_tg_api_url(configuration)
+  <> config.get_token(configuration)
+  <> "/"
+  <> path
 }
 
 fn new_post_request(
-  bot bot: Bot,
+  config config: Config,
   path path: String,
   body body: String,
   query query: Option(List(#(String, String))),
 ) {
-  TelegramApiPostRequest(url: build_url(bot, path), body: body, query: query)
+  TelegramApiPostRequest(url: build_url(config, path), body: body, query: query)
 }
 
 fn new_get_request(
-  bot bot: Bot,
+  config config: Config,
   path path: String,
   query query: Option(List(#(String, String))),
 ) {
-  TelegramApiGetRequest(url: build_url(bot, path), query: query)
+  TelegramApiGetRequest(url: build_url(config, path), query: query)
 }
 
 fn set_query(
@@ -305,10 +371,10 @@ fn api_to_request(
 
 fn fetch(
   api_request: TelegramApiRequest,
-  bot: Bot,
+  configuration: Config,
 ) -> Result(Response(String), String) {
   use api_request <- result.try(api_to_request(api_request))
-  let retry_count = telega_bot.get_max_retry_attempts(bot)
+  let retry_count = config.get_max_retry_attempts(configuration)
 
   send_with_retry(api_request, retry_count)
   |> result.map_error(fn(error) {
@@ -362,6 +428,7 @@ fn map_resonse(
   |> result.flatten
 }
 
+// TODO: decode error
 fn response_decoder(result_decoder: fn(Dynamic) -> Result(a, List(DecodeError))) {
   dynamic.decode2(
     ApiResponse,

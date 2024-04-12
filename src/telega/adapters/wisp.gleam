@@ -5,13 +5,10 @@ import wisp.{
 import gleam/http/response.{Response as HttpResponse}
 import gleam/result
 import gleam/http/request
-import gleam/string
 import gleam/bool
-import gleam/dynamic
-import gleam/list
 import telega.{type Telega}
 import telega/log
-import telega/message
+import telega/update
 
 const secret_header = "x-relegram-bot-api-secret-token"
 
@@ -34,11 +31,11 @@ pub fn handle_bot(
   telega telega: Telega(session),
   next handler: fn() -> WispResponse,
 ) -> WispResponse {
-  log.info("Received request from Telegram API")
   use <- bool.lazy_guard(!is_bot_request(telega, req), fn() { handler() })
+  log.info("Received request from Telegram API")
   use json <- wisp.require_json(req)
 
-  case message.decode(json) {
+  case update.decode(json) {
     Ok(message) -> {
       use <- bool.lazy_guard(is_secret_token_valid(telega, req), fn() {
         HttpResponse(401, [], WispEmptyBody)
@@ -51,12 +48,8 @@ pub fn handle_bot(
         }
       }
     }
-    Error(errors) -> {
-      let error_message =
-        errors
-        |> list.map(decode_to_string)
-        |> string.join("\n")
-      log.error("Failed to decode message:\n" <> error_message)
+    Error(error) -> {
+      log.error("Failed to decode message:\n" <> error)
       wisp.internal_server_error()
     }
   }
@@ -68,13 +61,6 @@ fn is_secret_token_valid(telega: Telega(session), req: WispRequest) -> Bool {
     |> result.unwrap("")
 
   telega.is_secret_token_valid(telega, secret_header_value)
-}
-
-/// Format decode error to error message string.
-fn decode_to_string(error: dynamic.DecodeError) -> String {
-  let dynamic.DecodeError(expected, found, path) = error
-  let path_string = string.join(path, ".")
-  "Expected " <> expected <> ", found " <> found <> " at " <> path_string
 }
 
 fn is_bot_request(telega: Telega(session), req: WispRequest) -> Bool {

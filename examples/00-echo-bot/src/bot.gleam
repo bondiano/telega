@@ -1,11 +1,12 @@
 import gleam/erlang/process
 import gleam/result
-import gleam/option.{None, Some}
+import gleam/option.{None}
 import mist
 import wisp
 import telega
-import telega/adapters/wisp as telega_wisp
+import telega/update.{CommandUpdate, TextUpdate}
 import telega/api as telega_api
+import telega/adapters/wisp as telega_wisp
 
 fn handle_request(bot, req) {
   use <- telega_wisp.handle_bot(req, bot)
@@ -15,12 +16,12 @@ fn handle_request(bot, req) {
 fn echo_handler(ctx) {
   use <- telega.log_context(ctx, "echo")
 
-  case ctx.message.raw.text {
-    Some(text) ->
-      telega_api.reply(ctx, text)
-      |> result.map(fn(_) { Nil })
-    None -> Error("No text in message")
+  case ctx.update {
+    TextUpdate(text: text, ..) -> telega_api.reply(ctx, text)
+    CommandUpdate(command: command, ..) -> telega_api.reply(ctx, command.text)
+    _ -> Error("No text message")
   }
+  |> result.map(fn(_) { Nil })
 }
 
 pub fn main() {

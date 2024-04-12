@@ -1,26 +1,38 @@
+import gleam/result
 import gleam/list
-import gleam/option.{type Option, None}
+import gleam/option.{type Option, None, Some}
 import gleam/json.{type Json}
 import gleam/dynamic.{type Dynamic}
 
 // Reply ------------------------------------------------------------------------
 
+// TODO: Support all the fields
 pub type Update {
   /// **Official reference:** https://core.telegram.org/bots/api#update
   Update(
-    message: Message,
-    /// The update's unique identifier.
+    /// The update's unique identifier. Update identifiers start from a certain positive number and increase sequentially.
+    /// This identifier becomes especially handy if you're using webhooks, since it allows you to ignore repeated updates or to restore the correct update sequence, should they get out of order.
+    /// If there are no new updates for at least a week, then identifier of the next update will be chosen randomly instead of sequentially.
     update_id: Int,
+    /// New incoming message of any kind - text, photo, sticker, etc.
+    message: Option(Message),
+    /// New version of a message that is known to the bot and was edited.
+    /// This update may at times be triggered by changes to message fields that are either unavailable or not actively used by your bot.
+    edited_message: Option(Message),
+    /// New incoming callback query
+    callback_query: Option(CallbackQuery),
   )
 }
 
 /// Decode a message from the Telegram API.
 pub fn decode_update(json: Dynamic) -> Result(Update, dynamic.DecodeErrors) {
   json
-  |> dynamic.decode2(
+  |> dynamic.decode4(
     Update,
-    dynamic.field("message", decode_message),
     dynamic.field("update_id", dynamic.int),
+    dynamic.optional_field("message", decode_message),
+    dynamic.optional_field("edited_message", decode_message),
+    dynamic.optional_field("callback_query", decode_callback_query),
   )
 }
 
@@ -88,6 +100,8 @@ pub type Message {
     edit_date: Option(Int),
     /// _True_, if the message can't be forwarded
     has_protected_content: Option(Bool),
+    /// _True_, if the message was sent by an implicit action, for example, as an away or a greeting business message, or as a scheduled message
+    is_from_offline: Option(Bool),
     /// The unique identifier of a media message group this message belongs to
     media_group_id: Option(String),
     /// Signature of the post author for messages in channels, or the custom title of an anonymous group administrator
@@ -228,6 +242,8 @@ pub fn decode_message(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
     dynamic.optional_field("reply_markup", decode_inline_markup)
   let decode_web_app_data =
     dynamic.optional_field("web_app_data", decode_web_app_data)
+  let decode_is_from_offline =
+    dynamic.optional_field("is_from_offline", dynamic.bool)
 
   case
     decode_message_id(json),
@@ -261,7 +277,8 @@ pub fn decode_message(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
     decode_migrate_from_chat_id(json),
     decode_connected_website(json),
     decode_inline_keyboard_markup(json),
-    decode_web_app_data(json)
+    decode_web_app_data(json),
+    decode_is_from_offline(json)
   {
     Ok(message_id), Ok(message_thread_id), Ok(from), Ok(sender_chat), Ok(
       sender_boost_count,
@@ -277,7 +294,7 @@ pub fn decode_message(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
       channel_chat_created,
     ), Ok(migrate_to_chat_id), Ok(migrate_from_chat_id), Ok(connected_website), Ok(
       inline_keyboard_markup,
-    ), Ok(web_app_data) ->
+    ), Ok(web_app_data), Ok(is_from_offline) ->
       Ok(Message(
         message_id: message_id,
         message_thread_id: message_thread_id,
@@ -292,6 +309,7 @@ pub fn decode_message(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
         via_bot: via_bot,
         edit_date: edit_date,
         has_protected_content: has_protected_content,
+        is_from_offline: is_from_offline,
         media_group_id: media_group_id,
         author_signature: author_signature,
         text: text,
@@ -312,7 +330,7 @@ pub fn decode_message(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
         web_app_data: web_app_data,
         reply_markup: inline_keyboard_markup,
       ))
-    message_id, message_thread_id, from, sender_chat, sender_boost_count, date, chat, is_topic_message, is_automatic_forward, reply_to_message, via_bot, edit_date, has_protected_content, media_group_id, author_signature, text, entities, caption, caption_entities, has_media_spoiler, new_chat_members, left_chat_member, new_chat_title, delete_chat_photo, group_chat_created, supergroup_chat_created, channel_chat_created, migrate_to_chat_id, migrate_from_chat_id, connected_website, inline_keyboard_markup, web_app_data ->
+    message_id, message_thread_id, from, sender_chat, sender_boost_count, date, chat, is_topic_message, is_automatic_forward, reply_to_message, via_bot, edit_date, has_protected_content, media_group_id, author_signature, text, entities, caption, caption_entities, has_media_spoiler, new_chat_members, left_chat_member, new_chat_title, delete_chat_photo, group_chat_created, supergroup_chat_created, channel_chat_created, migrate_to_chat_id, migrate_from_chat_id, connected_website, inline_keyboard_markup, web_app_data, is_from_offline ->
       Error(
         list.concat([
           all_errors(message_id),
@@ -328,6 +346,7 @@ pub fn decode_message(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
           all_errors(via_bot),
           all_errors(edit_date),
           all_errors(has_protected_content),
+          all_errors(is_from_offline),
           all_errors(media_group_id),
           all_errors(author_signature),
           all_errors(text),
@@ -398,6 +417,19 @@ pub type BotCommandScope {
   )
 }
 
+pub fn decode_bot_command(
+  json: Dynamic,
+) -> Result(List(BotCommand), dynamic.DecodeErrors) {
+  json
+  |> dynamic.list(dynamic.decode2(
+    BotCommand,
+    dynamic.field("command", dynamic.string),
+    dynamic.field("description", dynamic.string),
+  ))
+}
+
+// BotCommandParameters ---------------------------------------------------------------------
+
 pub type BotCommandParameters {
   BotCommandParameters(
     /// An object, describing scope of users for which the commands are relevant. Defaults to `BotCommandScopeDefault`.
@@ -409,17 +441,6 @@ pub type BotCommandParameters {
 
 pub fn default_botcommand_parameters() -> BotCommandParameters {
   BotCommandParameters(scope: None, language_code: None)
-}
-
-pub fn decode_bot_command(
-  json: Dynamic,
-) -> Result(List(BotCommand), dynamic.DecodeErrors) {
-  json
-  |> dynamic.list(dynamic.decode2(
-    BotCommand,
-    dynamic.field("command", dynamic.string),
-    dynamic.field("description", dynamic.string),
-  ))
 }
 
 pub fn encode_botcommand_parameters(
@@ -654,6 +675,13 @@ pub fn new_send_message_parameters(
   )
 }
 
+pub fn set_send_message_parameters_reply_markup(
+  params: SendMessageParameters,
+  reply_markup: ReplyMarkup,
+) -> SendMessageParameters {
+  SendMessageParameters(..params, reply_markup: Some(reply_markup))
+}
+
 pub fn encode_send_message_parameters(
   send_message_parameters: SendMessageParameters,
 ) -> Json {
@@ -841,6 +869,20 @@ pub fn decode_inline_markup(
       dynamic.list(dynamic.list(decode_inline_button)),
     ),
   )
+}
+
+pub fn encode_inline_keyboard_markup(
+  inline_keyboard_markup: InlineKeyboardMarkup,
+) -> Json {
+  let inline_keyboard = #(
+    "inline_keyboard",
+    json.array(inline_keyboard_markup.inline_keyboard, json.array(
+      _,
+      encode_inline_keyboard_button,
+    )),
+  )
+
+  json_object_filter_nulls([inline_keyboard])
 }
 
 // Keyboard ---------------------------------------------------------------------
@@ -1286,7 +1328,7 @@ pub fn encode_reply_markup(reply_markup: ReplyMarkup) -> Json {
 
 pub type SendDiceParameters {
   SendDiceParameters(
-    chat_id: Int,
+    chat_id: IntOrString,
     /// Unique identifier for the target message thread (topic) of the forum; for forum supergroups only
     message_thread_id: Option(Int),
     /// Emoji on which the dice throw animation is based. Currently, must be one of "🎲", "🎯", "🏀", "⚽", "🎳", or "🎰". Dice can have values 1-6 for "🎲", "🎯" and "🎳", values 1-5 for "🏀" and "⚽", and values 1-64 for "🎰". Defaults to "🎲"
@@ -1300,7 +1342,9 @@ pub type SendDiceParameters {
   )
 }
 
-pub fn new_send_dice_parameters(chat_id chat_id: Int) -> SendDiceParameters {
+pub fn new_send_dice_parameters(
+  chat_id chat_id: IntOrString,
+) -> SendDiceParameters {
   SendDiceParameters(
     chat_id: chat_id,
     message_thread_id: None,
@@ -1312,7 +1356,7 @@ pub fn new_send_dice_parameters(chat_id chat_id: Int) -> SendDiceParameters {
 }
 
 pub fn encode_send_dice_parameters(params: SendDiceParameters) -> Json {
-  let chat_id = #("chat_id", json.int(params.chat_id))
+  let chat_id = #("chat_id", encode_int_or_string(params.chat_id))
   let message_thread_id = #(
     "message_thread_id",
     json.nullable(params.message_thread_id, json.int),
@@ -1715,6 +1759,262 @@ pub fn encode_link_preview_options(
       "show_above_text",
       json.nullable(link_preview_options.show_above_text, json.bool),
     ),
+  ])
+}
+
+// CallbackQuery -----------------------------------------------------------------------------------------------------
+
+pub type CallbackQuery {
+  /// This object represents an incoming callback query from a callback button in an [inline keyboard](https://core.telegram.org/bots/features#inline-keyboards).
+  /// If the button that originated the query was attached to a message sent by the bot, the field message will be present.
+  /// If the button was attached to a message sent via the bot (in [inline mode](https://core.telegram.org/bots/api#inline-mode)), the field _inline_message_id_ will be present.
+  /// Exactly one of the fields data or _game_short_name_ will be present.
+  ///
+  /// > **NOTE:** After the user presses a callback button, Telegram clients will display a progress bar until you call [answerCallbackQuery](https://core.telegram.org/bots/api#answercallbackquery).
+  /// > It is, therefore, necessary to react by calling [answerCallbackQuery](https://core.telegram.org/bots/api#answercallbackquery) even if no notification to the user is needed (e.g., without specifying any of the optional parameters).
+  ///
+  /// **Official reference:** [CallbackQuery](https://core.telegram.org/bots/api#callbackquery)
+  CallbackQuery(
+    /// Unique identifier for this query
+    id: String,
+    /// Sender
+    from: User,
+    /// Message sent by the bot with the callback button that originated the query
+    message: Option(MaybeInaccessibleMessage),
+    /// Identifier of the message sent via the bot in inline mode, that originated the query.
+    inline_message_id: Option(String),
+    /// Global identifier, uniquely corresponding to the chat to which the message with the callback button was sent. Useful for high scores in [games](https://core.telegram.org/bots/api#games).
+    chat_instance: Option(String),
+    /// Data associated with the callback button. Be aware that the message originated the query can contain no callback buttons with this data.
+    data: Option(String),
+    /// Short name of a [Game](https://core.telegram.org/bots/api#games) to be returned, serves as the unique identifier for the game
+    game_short_name: Option(String),
+  )
+}
+
+pub fn decode_callback_query(
+  json: Dynamic,
+) -> Result(CallbackQuery, dynamic.DecodeErrors) {
+  json
+  |> dynamic.decode7(
+    CallbackQuery,
+    dynamic.field("id", dynamic.string),
+    dynamic.field("from", decode_user),
+    dynamic.optional_field("message", decode_maybe_inaccessible_message),
+    dynamic.optional_field("inline_message_id", dynamic.string),
+    dynamic.optional_field("chat_instance", dynamic.string),
+    dynamic.optional_field("data", dynamic.string),
+    dynamic.optional_field("game_short_name", dynamic.string),
+  )
+}
+
+// InaccessibleMessage -----------------------------------------------------------------------------------------------
+
+pub type InaccessibleMessage {
+  /// This object describes a message that was deleted or is otherwise inaccessible to the bot.
+  ///
+  /// **Official reference:** [InaccessibleMessage](https://core.telegram.org/bots/api#inaccessiblemessage)
+  InaccessibleMessage(
+    /// Chat the message belonged to
+    chat: Chat,
+    /// Unique message identifier inside the chat
+    message_id: Int,
+    /// Always 0. The field can be used to differentiate regular and inaccessible messages.
+    date: Int,
+  )
+}
+
+pub fn decode_inaccessible_message(
+  json: Dynamic,
+) -> Result(InaccessibleMessage, dynamic.DecodeErrors) {
+  json
+  |> dynamic.decode3(
+    InaccessibleMessage,
+    dynamic.field("chat", decode_chat),
+    dynamic.field("message_id", dynamic.int),
+    dynamic.field("date", dynamic.int),
+  )
+}
+
+// MaybeInaccessibleMessage ------------------------------------------------------------------------------------------
+
+/// This object describes a message that can be inaccessible to the bot.
+///
+/// **Official reference:** [MaybeInaccessibleMessage](https://core.telegram.org/bots/api#maybeinaccessiblemessage)
+pub type MaybeInaccessibleMessage {
+  MaybeInaccessibleMessageMessage(Message)
+  MaybeInaccessibleMessageInaccessible(InaccessibleMessage)
+}
+
+pub fn decode_maybe_inaccessible_message(
+  json: Dynamic,
+) -> Result(MaybeInaccessibleMessage, dynamic.DecodeErrors) {
+  case
+    json
+    |> dynamic.field("date", dynamic.int)
+  {
+    Ok(date) ->
+      case date == 0 {
+        True ->
+          case decode_inaccessible_message(json) {
+            Ok(inaccessible_message) ->
+              Ok(MaybeInaccessibleMessageInaccessible(inaccessible_message))
+            Error(errors) -> Error(errors)
+          }
+        False ->
+          case decode_message(json) {
+            Ok(message) -> Ok(MaybeInaccessibleMessageMessage(message))
+            Error(errors) -> Error(errors)
+          }
+      }
+    Error(errors) -> Error(errors)
+  }
+}
+
+// EditMessageTextParameters ------------------------------------------------------------------------------------------
+
+pub type EditMessageTextParameters {
+  EditMessageTextParameters(
+    /// Required if _inline_message_id_ is not specified.
+    /// Unique identifier for the target chat or username of the target channel (in the format `@channelusername`)
+    chat_id: Option(IntOrString),
+    /// Required if inline_message_id is not specified. Identifier of the message to edit
+    message_id: Option(Int),
+    /// Required if _chat_id_ and _message_id_ are not specified. Identifier of the inline message
+    inline_message_id: Option(String),
+    /// New text of the message, 1-4096 characters after entities parsing
+    text: String,
+    /// Mode for parsing entities in the message text. See [formatting options](https://core.telegram.org/bots/api#formatting-options) for more details.
+    parse_mode: Option(String),
+    /// A JSON-serialized list of special entities that appear in message text, which can be specified instead of _parse_mode_
+    entities: Option(List(MessageEntity)),
+    /// Link preview generation options for the message
+    link_preview_options: Option(LinkPreviewOptions),
+    /// A JSON-serialized object for an [inline keyboard](https://core.telegram.org/bots/features#inline-keyboards).
+    reply_markup: Option(InlineKeyboardMarkup),
+  )
+}
+
+pub fn default_edit_message_text_parameters() -> EditMessageTextParameters {
+  EditMessageTextParameters(
+    chat_id: None,
+    message_id: None,
+    inline_message_id: None,
+    text: "",
+    parse_mode: None,
+    entities: None,
+    link_preview_options: None,
+    reply_markup: None,
+  )
+}
+
+pub fn encode_edit_message_text_parameters(
+  params: EditMessageTextParameters,
+) -> Json {
+  let chat_id = #(
+    "chat_id",
+    json.nullable(params.chat_id, encode_int_or_string),
+  )
+  let message_id = #("message_id", json.nullable(params.message_id, json.int))
+  let inline_message_id = #(
+    "inline_message_id",
+    json.nullable(params.inline_message_id, json.string),
+  )
+  let text = #("text", json.string(params.text))
+  let parse_mode = #(
+    "parse_mode",
+    json.nullable(params.parse_mode, json.string),
+  )
+  let entities = #(
+    "entities",
+    json.nullable(params.entities, json.array(_, encode_message_entity)),
+  )
+  let link_preview_options = #(
+    "link_preview_options",
+    json.nullable(params.link_preview_options, encode_link_preview_options),
+  )
+  let reply_markup = #(
+    "reply_markup",
+    json.nullable(params.reply_markup, encode_inline_keyboard_markup),
+  )
+
+  json_object_filter_nulls([
+    chat_id,
+    message_id,
+    inline_message_id,
+    text,
+    parse_mode,
+    entities,
+    link_preview_options,
+    reply_markup,
+  ])
+}
+
+pub type EditMessageTextResult {
+  EditMessageTextMessage(Message)
+  EditMessageTextBool(Bool)
+}
+
+pub fn decode_edit_message_text_result(
+  json: Dynamic,
+) -> Result(EditMessageTextResult, dynamic.DecodeErrors) {
+  case dynamic.bool(json) {
+    Ok(bool) -> Ok(EditMessageTextBool(bool))
+    Error(_) ->
+      decode_message(json)
+      |> result.map(EditMessageTextMessage)
+  }
+}
+
+// AnswerCallbackQueryParameters --------------------------------------------------------------------------------------
+// https://core.telegram.org/bots/api#answercallbackquery
+pub type AnswerCallbackQueryParameters {
+  AnswerCallbackQueryParameters(
+    /// Unique identifier for the query to be answered
+    callback_query_id: String,
+    /// Text of the notification. If not specified, nothing will be shown to the user
+    text: Option(String),
+    /// If true, an alert will be shown by the client instead of a notification at the top of the chat screen. Defaults to false.
+    show_alert: Option(Bool),
+    /// URL that will be opened by the user's client. If you have created a [Game](https://core.telegram.org/bots/api#games), you can use this
+    /// field to redirect the player to your game
+    url: Option(String),
+    /// The maximum amount of time in seconds that the result of the callback query may be cached client-side. Telegram apps will support
+    /// caching starting in version 3.14. Defaults to 0.
+    cache_time: Option(Int),
+  )
+}
+
+pub fn new_answer_callback_query_parameters(
+  callback_query_id: String,
+) -> AnswerCallbackQueryParameters {
+  AnswerCallbackQueryParameters(
+    callback_query_id: callback_query_id,
+    text: None,
+    show_alert: None,
+    url: None,
+    cache_time: None,
+  )
+}
+
+pub fn encode_answer_callback_query_parameters(
+  params: AnswerCallbackQueryParameters,
+) -> Json {
+  let callback_query_id = #(
+    "callback_query_id",
+    json.string(params.callback_query_id),
+  )
+  let text = #("text", json.nullable(params.text, json.string))
+  let show_alert = #("show_alert", json.nullable(params.show_alert, json.bool))
+  let url = #("url", json.nullable(params.url, json.string))
+  let cache_time = #("cache_time", json.nullable(params.cache_time, json.int))
+
+  json_object_filter_nulls([
+    callback_query_id,
+    text,
+    show_alert,
+    url,
+    cache_time,
   ])
 }
 

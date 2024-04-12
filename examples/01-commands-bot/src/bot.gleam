@@ -50,7 +50,7 @@ fn start_command_handler(ctx: NilContext, _) -> Result(Nil, String) {
   use <- telega.log_context(ctx, "start")
 
   telega_api.set_my_commands(
-    ctx,
+    ctx.config,
     telega_model.bot_commands_from([#("/dice", "Roll a dice")]),
     None,
   )

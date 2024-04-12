@@ -1,14 +1,13 @@
-import gleam/int
 import carpenter/table
 import telega
 
-pub type NameBotState {
-  SetName
-  WaitName
+pub type Language {
+  English
+  Russian
 }
 
-pub type NameBotSession {
-  NameBotSession(name: String, state: NameBotState)
+pub type LanguageBotSession {
+  LanguageBotSession(lang: Language)
 }
 
 pub fn attach(bot) {
@@ -19,11 +18,10 @@ pub fn attach(bot) {
 
   telega.with_session_settings(
     bot,
-    get_session_key: fn(message) { int.to_string(message.raw.chat.id) },
     get_session: fn(key) {
       case table.lookup(session_table, key) {
         [#(_, session), ..] -> Ok(session)
-        _ -> Ok(NameBotSession(name: "Unknown", state: WaitName))
+        _ -> Ok(LanguageBotSession(lang: English))
       }
     },
     persist_session: fn(key, session) {

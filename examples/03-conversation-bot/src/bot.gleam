@@ -1,4 +1,3 @@
-import gleam/bool
 import gleam/result
 import gleam/option.{None, Some}
 import gleam/erlang/os
@@ -11,7 +10,7 @@ import telega/bot.{type Context}
 import telega/adapters/wisp as telega_wisp
 import telega/api as telega_api
 import telega/model as telega_model
-import session.{type NameBotSession, NameBotSession, SetName, WaitName}
+import session.{type NameBotSession, NameBotSession}
 
 type BotContext =
   Context(NameBotSession)
@@ -38,22 +37,12 @@ fn set_name_command_handler(
   ctx: BotContext,
   _,
 ) -> Result(NameBotSession, String) {
-  use <- bool.guard(ctx.session.state != WaitName, Ok(ctx.session))
   use <- telega.log_context(ctx, "set_name command")
+  use _ <- result.try(telega_api.reply(ctx, "What's your name?"))
+  use ctx, name <- telega.wait_text(ctx)
+  use _ <- result.try(telega_api.reply(ctx, "Your name is: " <> name <> " set!"))
 
-  telega_api.reply(ctx, "What's your name?")
-  |> result.map(fn(_) { NameBotSession(name: ctx.session.name, state: SetName) })
-}
-
-fn set_name_message_handler(
-  ctx: BotContext,
-  name,
-) -> Result(NameBotSession, String) {
-  use <- bool.guard(ctx.session.state != SetName, Ok(ctx.session))
-  use <- telega.log_context(ctx, "set_name")
-
-  telega_api.reply(ctx, "Your name is: " <> name <> " set!")
-  |> result.map(fn(_) { NameBotSession(name: name, state: WaitName) })
+  Ok(NameBotSession(name: name))
 }
 
 fn get_name_command_handler(
@@ -70,7 +59,7 @@ fn start_command_handler(ctx, _) -> Result(NameBotSession, String) {
   use <- telega.log_context(ctx, "start")
 
   telega_api.set_my_commands(
-    ctx,
+    ctx.config,
     telega_model.bot_commands_from([
       #("/set_name", "Set name"),
       #("/get_name", "Get name"),
@@ -101,7 +90,6 @@ fn build_bot() {
   |> telega.handle_command("start", start_command_handler)
   |> telega.handle_command("set_name", set_name_command_handler)
   |> telega.handle_command("get_name", get_name_command_handler)
-  |> telega.handle_text(set_name_message_handler)
   |> session.attach
   |> telega.init
 }
