@@ -310,15 +310,19 @@ fn handle_bot_instanse_message(
       case bot.active_handler {
         Some(handler) ->
           case do_handle(bot, message, handler) {
-            Ok(new_session) -> {
+            Some(Ok(new_session)) -> {
               actor.send(client, BotInstanseMessageOk)
               actor.continue(
                 BotInstanse(..bot, session: new_session, active_handler: None),
               )
             }
-            Error(e) -> {
+            Some(Error(e)) -> {
               log.error("Failed to handle update:\n" <> e)
               actor.Stop(process.Normal)
+            }
+            None -> {
+              actor.send(client, BotInstanseMessageOk)
+              actor.continue(bot)
             }
           }
         None ->
@@ -353,38 +357,38 @@ fn do_handle(
   bot: BotInstanse(session),
   update: Update,
   handler: Handler(session),
-) -> Result(session, String) {
+) -> Option(Result(session, String)) {
   case handler, update {
-    HandleAll(handle), _ -> handle(new_context(bot, update))
+    HandleAll(handle), _ -> Some(handle(new_context(bot, update)))
     HandleText(handle), TextUpdate(text: text, ..) ->
-      handle(new_context(bot, update), text)
+      Some(handle(new_context(bot, update), text))
     HandleHears(hear, handle), TextUpdate(text: text, ..) -> {
       case hears_check(text, hear) {
-        True -> handle(new_context(bot, update), text)
-        False -> Ok(bot.session)
+        True -> Some(handle(new_context(bot, update), text))
+        False -> None
       }
     }
     HandleCommand(command, handle), CommandUpdate(command: update_command, ..) ->
       case update_command.command == command {
-        True -> handle(new_context(bot, update), update_command)
-        False -> Ok(bot.session)
+        True -> Some(handle(new_context(bot, update), update_command))
+        False -> None
       }
     HandleCommands(commands, handle), CommandUpdate(command: update_command, ..) -> {
       case list.contains(commands, update_command.command) {
-        True -> handle(new_context(bot, update), update_command)
-        False -> Ok(bot.session)
+        True -> Some(handle(new_context(bot, update), update_command))
+        False -> None
       }
     }
     HandleCallbackQuery(filter, handle), CallbackQueryUpdate(raw: raw, ..) ->
       case raw.data {
         Some(data) ->
           case regex.check(filter.re, data) {
-            True -> handle(new_context(bot, update), data, raw.id)
-            False -> Ok(bot.session)
+            True -> Some(handle(new_context(bot, update), data, raw.id))
+            False -> None
           }
-        None -> Ok(bot.session)
+        None -> None
       }
-    _, _ -> Ok(bot.session)
+    _, _ -> None
   }
 }
 
@@ -396,12 +400,13 @@ fn loop_handlers(
   case handlers {
     [handler, ..rest] ->
       case do_handle(bot, update, handler) {
-        Ok(new_session) ->
+        Some(Ok(new_session)) ->
           loop_handlers(BotInstanse(..bot, session: new_session), update, rest)
-        Error(e) ->
+        Some(Error(e)) ->
           Error(
             "Failed to handle message " <> string.inspect(update) <> ":\n" <> e,
           )
+        None -> loop_handlers(bot, update, rest)
       }
     [] -> bot.session_settings.persist_session(bot.key, bot.session)
   }
