@@ -45,26 +45,32 @@ pub fn new(
   )
 }
 
+@internal
 pub fn get_secret_token(config: Config) -> String {
   config.secret_token
 }
 
+@internal
 pub fn get_tg_api_url(config: Config) -> String {
   option.unwrap(config.tg_api_url, telegram_url)
 }
 
+@internal
 pub fn get_token(config: Config) -> String {
   config.token
 }
 
+@internal
 pub fn get_max_retry_attempts(config: Config) -> Int {
   option.unwrap(config.max_retry_attempts, default_retry_count)
 }
 
+@internal
 pub fn get_server_url(config: Config) -> String {
   config.server_url
 }
 
+@internal
 pub fn get_webhook_path(config: Config) -> String {
   config.webhook_path
 }
