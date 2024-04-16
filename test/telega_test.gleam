@@ -1,11 +1,11 @@
+import gleam/http/response.{type Response, Response}
+import gleam/httpc
+import gleam/option.{None}
 import gleeunit
 import gleeunit/should
-import gleam/http/response.{type Response, Response}
-import gleam/option.{None}
 import mockth
-import gleam/httpc
-import telega/config
 import telega/api
+import telega/config
 
 pub fn main() {
   gleeunit.main()
