@@ -1,8 +1,8 @@
-import gleam/result
+import gleam/dynamic.{type Dynamic}
+import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/json.{type Json}
-import gleam/dynamic.{type Dynamic}
+import gleam/result
 
 // Reply ------------------------------------------------------------------------
 
@@ -280,21 +280,40 @@ pub fn decode_message(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
     decode_web_app_data(json),
     decode_is_from_offline(json)
   {
-    Ok(message_id), Ok(message_thread_id), Ok(from), Ok(sender_chat), Ok(
-      sender_boost_count,
-    ), Ok(date), Ok(chat), Ok(is_topic_message), Ok(is_automatic_forward), Ok(
-      reply_to_message,
-    ), Ok(via_bot), Ok(edit_date), Ok(has_protected_content), Ok(media_group_id), Ok(
-      author_signature,
-    ), Ok(text), Ok(entities), Ok(caption), Ok(caption_entities), Ok(
-      has_media_spoiler,
-    ), Ok(new_chat_members), Ok(left_chat_member), Ok(new_chat_title), Ok(
-      delete_chat_photo,
-    ), Ok(group_chat_created), Ok(supergroup_chat_created), Ok(
-      channel_chat_created,
-    ), Ok(migrate_to_chat_id), Ok(migrate_from_chat_id), Ok(connected_website), Ok(
-      inline_keyboard_markup,
-    ), Ok(web_app_data), Ok(is_from_offline) ->
+    Ok(message_id),
+      Ok(message_thread_id),
+      Ok(from),
+      Ok(sender_chat),
+      Ok(sender_boost_count),
+      Ok(date),
+      Ok(chat),
+      Ok(is_topic_message),
+      Ok(is_automatic_forward),
+      Ok(reply_to_message),
+      Ok(via_bot),
+      Ok(edit_date),
+      Ok(has_protected_content),
+      Ok(media_group_id),
+      Ok(author_signature),
+      Ok(text),
+      Ok(entities),
+      Ok(caption),
+      Ok(caption_entities),
+      Ok(has_media_spoiler),
+      Ok(new_chat_members),
+      Ok(left_chat_member),
+      Ok(new_chat_title),
+      Ok(delete_chat_photo),
+      Ok(group_chat_created),
+      Ok(supergroup_chat_created),
+      Ok(channel_chat_created),
+      Ok(migrate_to_chat_id),
+      Ok(migrate_from_chat_id),
+      Ok(connected_website),
+      Ok(inline_keyboard_markup),
+      Ok(web_app_data),
+      Ok(is_from_offline)
+    ->
       Ok(Message(
         message_id: message_id,
         message_thread_id: message_thread_id,
@@ -330,7 +349,39 @@ pub fn decode_message(json: Dynamic) -> Result(Message, dynamic.DecodeErrors) {
         web_app_data: web_app_data,
         reply_markup: inline_keyboard_markup,
       ))
-    message_id, message_thread_id, from, sender_chat, sender_boost_count, date, chat, is_topic_message, is_automatic_forward, reply_to_message, via_bot, edit_date, has_protected_content, media_group_id, author_signature, text, entities, caption, caption_entities, has_media_spoiler, new_chat_members, left_chat_member, new_chat_title, delete_chat_photo, group_chat_created, supergroup_chat_created, channel_chat_created, migrate_to_chat_id, migrate_from_chat_id, connected_website, inline_keyboard_markup, web_app_data, is_from_offline ->
+    message_id,
+      message_thread_id,
+      from,
+      sender_chat,
+      sender_boost_count,
+      date,
+      chat,
+      is_topic_message,
+      is_automatic_forward,
+      reply_to_message,
+      via_bot,
+      edit_date,
+      has_protected_content,
+      media_group_id,
+      author_signature,
+      text,
+      entities,
+      caption,
+      caption_entities,
+      has_media_spoiler,
+      new_chat_members,
+      left_chat_member,
+      new_chat_title,
+      delete_chat_photo,
+      group_chat_created,
+      supergroup_chat_created,
+      channel_chat_created,
+      migrate_to_chat_id,
+      migrate_from_chat_id,
+      connected_website,
+      inline_keyboard_markup,
+      web_app_data,
+      is_from_offline ->
       Error(
         list.concat([
           all_errors(message_id),

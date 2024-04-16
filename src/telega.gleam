@@ -1,20 +1,20 @@
-import gleam/string
-import gleam/result
 import gleam/bool
+import gleam/erlang/process.{type Subject}
+import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import gleam/otp/supervisor
-import gleam/erlang/process.{type Subject}
+import gleam/result
+import gleam/string
 import telega/api
-import telega/log
-import gleam/option.{type Option, None, Some}
-import telega/update.{type Command, type Update}
-import telega/config.{type Config}
 import telega/bot.{
   type CallbackQueryFilter, type Context, type Handler, type Hears,
   type RegistryMessage, type SessionSettings, CallbackQueryFilter, Context,
   HandleAll, HandleBotRegistryMessage, HandleCallbackQuery, HandleCommand,
   HandleCommands, HandleHears, HandleText, SessionSettings,
 }
+import telega/config.{type Config}
+import telega/log
+import telega/update.{type Command, type Update}
 
 pub opaque type Telega(session) {
   Telega(

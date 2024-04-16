@@ -1,20 +1,20 @@
-import gleam/list
-import gleam/int
-import gleam/string
-import gleam/result
+import gleam/dict.{type Dict}
+import gleam/erlang/process.{type Subject}
 import gleam/function
+import gleam/int
+import gleam/list
+import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import gleam/otp/supervisor
-import gleam/dict.{type Dict}
 import gleam/regex.{type Regex}
-import gleam/erlang/process.{type Subject}
-import gleam/option.{type Option, None, Some}
+import gleam/result
+import gleam/string
+import telega/config.{type Config}
+import telega/log
 import telega/update.{
   type Command, type Update, CallbackQueryUpdate, CommandUpdate, TextUpdate,
   UnknownUpdate,
 }
-import telega/config.{type Config}
-import telega/log
 
 pub type Handler(session) {
   /// Handle all messages.

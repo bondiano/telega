@@ -1,9 +1,9 @@
 import gleam/bool
-import gleam/string
-import gleam/list
-import gleam/result
-import gleam/option.{type Option, None, Some}
 import gleam/dynamic.{type Dynamic}
+import gleam/list
+import gleam/option.{type Option, None, Some}
+import gleam/result
+import gleam/string
 import telega/model.{
   type CallbackQuery, type Message, type MessageEntity,
   type Update as ModelUpdate,

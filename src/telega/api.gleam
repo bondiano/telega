@@ -1,22 +1,22 @@
-import gleam/json
-import gleam/httpc
-import gleam/result
-import gleam/string
+import gleam/dynamic.{type DecodeError, type Dynamic}
 import gleam/erlang/process
+import gleam/http.{Get, Post}
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response, Response}
-import gleam/http.{Get, Post}
+import gleam/httpc
+import gleam/json
 import gleam/option.{type Option, None, Some}
-import gleam/dynamic.{type DecodeError, type Dynamic}
+import gleam/result
+import gleam/string
+import telega/bot.{type Context}
 import telega/config.{type Config}
+import telega/log
 import telega/model.{
   type AnswerCallbackQueryParameters, type BotCommand, type BotCommandParameters,
   type EditMessageTextParameters, type EditMessageTextResult,
   type Message as ModelMessage, type ReplyMarkup, type SendDiceParameters,
   type SendMessageParameters, type User, type WebhookInfo,
 }
-import telega/bot.{type Context}
-import telega/log
 
 const default_retry_delay = 1000
 
@@ -130,9 +130,9 @@ pub fn reply_with_markup(
   reply_with_parameters(
     ctx.config,
     parameters: model.new_send_message_parameters(
-        text: text,
-        chat_id: model.Stringed(ctx.key),
-      )
+      text: text,
+      chat_id: model.Stringed(ctx.key),
+    )
       |> model.set_send_message_parameters_reply_markup(reply_markup),
   )
 }

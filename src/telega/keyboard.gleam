@@ -1,17 +1,17 @@
 //// This module contains the keyboard constructors and usefull utilities to work with keyboards
 
 import gleam/list
-import gleam/string
-import gleam/result
-import gleam/regex
 import gleam/option.{type Option, None, Some}
+import gleam/regex
+import gleam/result
+import gleam/string
+import telega/bot.{
+  type CallbackQueryFilter, type Hears, CallbackQueryFilter, HearTexts,
+}
 import telega/model.{
   type InlineKeyboardButton, type KeyboardButton, type ReplyMarkup,
   InlineKeyboardButton, KeyboardButton, ReplyInlineKeyboardMarkup,
   ReplyKeyboardMarkup,
-}
-import telega/bot.{
-  type CallbackQueryFilter, type Hears, CallbackQueryFilter, HearTexts,
 }
 
 // Keyboard -------------------------------------------------------------------------------------------

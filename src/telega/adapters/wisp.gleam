@@ -1,14 +1,14 @@
+import gleam/bool
+import gleam/http/request
+import gleam/http/response.{Response as HttpResponse}
+import gleam/result
+import telega.{type Telega}
+import telega/log
+import telega/update
 import wisp.{
   type Request as WispRequest, type Response as WispResponse,
   Empty as WispEmptyBody,
 }
-import gleam/http/response.{Response as HttpResponse}
-import gleam/result
-import gleam/http/request
-import gleam/bool
-import telega.{type Telega}
-import telega/log
-import telega/update
 
 const secret_header = "x-relegram-bot-api-secret-token"
 
