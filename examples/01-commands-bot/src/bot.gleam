@@ -1,15 +1,15 @@
-import gleam/erlang/process
-import gleam/result
-import gleam/option.{None, Some}
-import gleam/erlang/os
 import dotenv_gleam
+import gleam/erlang/os
+import gleam/erlang/process
+import gleam/option.{None, Some}
+import gleam/result
 import mist
-import wisp.{type Request, type Response}
 import telega.{type Telega}
-import telega/bot.{type Context}
 import telega/adapters/wisp as telega_wisp
 import telega/api as telega_api
+import telega/bot.{type Context}
 import telega/model as telega_model
+import wisp.{type Request, type Response}
 
 type Bot =
   Telega(Nil)

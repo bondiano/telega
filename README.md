@@ -12,26 +12,32 @@ A [Gleam](https://gleam.run/) library for the Telegram Bot API.
 - session bot implementation
 - conversation implementation
 
-## Installation
+## Quick start
+
+> If you are new to Telegram bots, read the official [Introduction for Developers](https://core.telegram.org/bots) written by the Telegram team.
+
+First, visit [@BotFather](https://t.me/botfather) and create a new bot. Copy **the token** and save it for later.
+
+Init new gleam project and add `telega` and `wisp` as a dependency:
 
 ```sh
-gleam add telega
+$ gleam new first_tg_bot
+$ cd first_tg_bot
+$ gleam add telega wisp mist gleam_erlang
 ```
 
-## Simple usage
-
-To start using the library, you must install [wisp](https://github.com/gleam-wisp/wisp) and use the `telega` adapter middleware.
+Replace the `first_tg_bot.gleam` file content with the following code:
 
 ```gleam
 import gleam/erlang/process
-import gleam/result
 import gleam/option.{None}
+import gleam/result
 import mist
-import wisp
 import telega
-import telega/update.{CommandUpdate, TextUpdate}
-import telega/api as telega_api
 import telega/adapters/wisp as telega_wisp
+import telega/api as telega_api
+import telega/update.{CommandUpdate, TextUpdate}
+import wisp
 
 fn handle_request(bot, req) {
   use <- telega_wisp.handle_bot(req, bot)
@@ -73,6 +79,19 @@ pub fn main() {
 }
 ```
 
+Replace `"your bot token from @BotFather"` with the token you got from the BotFather. Set the `url` and `webhook_path` to your server URL and the path you want to use for the webhook. If you don't have a server yet, you can use [ngrok](https://ngrok.com/) or [localtunne](https://localtunnel.me/) to create a tunnel to your local machine.
+
+Then run the bot:
+
+````sh
+$ gleam run
+```
+and it will echo all received text messages.
+
+Congrats! You just wrote a Telegram bot :)
+
+## Examples
+
 Other examples can be found in the [examples](./examples) directory.
 
 ## Development
@@ -81,4 +100,4 @@ Other examples can be found in the [examples](./examples) directory.
 gleam run   # Run the project
 gleam test  # Run the tests
 gleam shell # Run an Erlang shell
-```
+````

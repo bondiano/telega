@@ -1,16 +1,16 @@
-import gleam/result
-import gleam/option.{None, Some}
+import dotenv_gleam
 import gleam/erlang/os
 import gleam/erlang/process
-import dotenv_gleam
+import gleam/option.{None, Some}
+import gleam/result
 import mist
-import wisp.{type Response}
+import session.{type NameBotSession, NameBotSession}
 import telega
-import telega/bot.{type Context}
 import telega/adapters/wisp as telega_wisp
 import telega/api as telega_api
+import telega/bot.{type Context}
 import telega/model as telega_model
-import session.{type NameBotSession, NameBotSession}
+import wisp.{type Response}
 
 type BotContext =
   Context(NameBotSession)

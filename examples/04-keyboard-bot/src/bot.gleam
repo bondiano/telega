@@ -1,18 +1,18 @@
-import gleam/result
-import gleam/option.{None, Some}
+import dotenv_gleam
 import gleam/erlang/os
 import gleam/erlang/process
-import dotenv_gleam
+import gleam/option.{None, Some}
+import gleam/result
+import language_keyboard
 import mist
-import wisp.{type Response}
+import session.{type LanguageBotSession, English, LanguageBotSession, Russian}
 import telega
-import telega/bot.{type Context}
 import telega/adapters/wisp as telega_wisp
 import telega/api as telega_api
+import telega/bot.{type Context}
 import telega/keyboard as telega_keyboard
 import telega/model.{EditMessageTextParameters, Stringed} as telega_model
-import session.{type LanguageBotSession, English, LanguageBotSession, Russian}
-import language_keyboard
+import wisp.{type Response}
 
 type BotContext =
   Context(LanguageBotSession)

@@ -1,12 +1,12 @@
 import gleam/erlang/process
-import gleam/result
 import gleam/option.{None}
+import gleam/result
 import mist
-import wisp
 import telega
-import telega/update.{CommandUpdate, TextUpdate}
-import telega/api as telega_api
 import telega/adapters/wisp as telega_wisp
+import telega/api as telega_api
+import telega/update.{CommandUpdate, TextUpdate}
+import wisp
 
 fn handle_request(bot, req) {
   use <- telega_wisp.handle_bot(req, bot)
