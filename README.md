@@ -7,7 +7,7 @@ A [Gleam](https://gleam.run/) library for the Telegram Bot API.
 
 ## It provides:
 
-- an inteface to the Telegram Bot HTTP-based APIs `telega/api`
+- an interface to the Telegram Bot HTTP-based APIs `telega/api`
 - adapter to use with [wisp](https://github.com/gleam-wisp/wisp)
 - session bot implementation
 - conversation implementation
@@ -83,9 +83,10 @@ Replace `"your bot token from @BotFather"` with the token you got from the BotFa
 
 Then run the bot:
 
-````sh
+```sh
 $ gleam run
 ```
+
 and it will echo all received text messages.
 
 Congrats! You just wrote a Telegram bot :)
@@ -100,4 +101,4 @@ Other examples can be found in the [examples](./examples) directory.
 gleam run   # Run the project
 gleam test  # Run the tests
 gleam shell # Run an Erlang shell
-````
+```
