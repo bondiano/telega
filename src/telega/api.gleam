@@ -14,8 +14,9 @@ import telega/log
 import telega/model.{
   type AnswerCallbackQueryParameters, type BotCommand, type BotCommandParameters,
   type EditMessageTextParameters, type EditMessageTextResult,
-  type Message as ModelMessage, type ReplyMarkup, type SendDiceParameters,
-  type SendMessageParameters, type User, type WebhookInfo,
+  type ForwardMessageParameters, type Message as ModelMessage, type ReplyMarkup,
+  type SendDiceParameters, type SendMessageParameters, type User,
+  type WebhookInfo,
 }
 
 const default_retry_delay = 1000
@@ -311,6 +312,26 @@ pub fn edit_message_text(
   )
   |> fetch(ctx.config)
   |> map_resonse(model.decode_edit_message_text_result)
+}
+
+/// Use this method to forward messages of any kind. Service messages and messages with protected content can't be forwarded.
+/// On success, the sent Message is returned.
+///
+/// **Official reference:** https://core.telegram.org/bots/api#forwardmessage
+pub fn forward_message(
+  ctx ctx: Context(session),
+  parameters parameters: ForwardMessageParameters,
+) -> Result(ModelMessage, String) {
+  let body_json = model.encode_forward_message_parameters(parameters)
+
+  new_post_request(
+    config: ctx.config,
+    path: "forwardMessage",
+    query: None,
+    body: json.to_string(body_json),
+  )
+  |> fetch(ctx.config)
+  |> map_resonse(model.decode_message)
 }
 
 fn build_url(configuration: Config, path: String) -> String {

@@ -2017,6 +2017,41 @@ pub fn decode_edit_message_text_result(
   }
 }
 
+// ForwardMessageParameters -------------------------------------------------------------------------------------------
+// https://core.telegram.org/bots/api#forwardmessage
+pub type ForwardMessageParameters {
+  ForwardMessageParameters(
+    /// Unique identifier for the target chat or username of the target channel (in the format `@channelusername`)
+    chat_id: IntOrString,
+    /// Unique identifier for the chat where the original message was sent (or channel username in the format `@channelusername`)
+    from_chat_id: IntOrString,
+    /// Message identifier in the chat specified in _from_chat_id_
+    message_id: Int,
+    /// Sends the message silently. Users will receive a notification with no sound.
+    disable_notification: Option(Bool),
+    /// Unique identifier for the target message thread (topic) of the forum; for forum supergroups only
+    message_thread_id: Option(Int),
+    /// Protects the contents of the forwarded message from forwarding and saving
+    protect_content: Option(Bool),
+  )
+}
+
+pub fn encode_forward_message_parameters(
+  params: ForwardMessageParameters,
+) -> Json {
+  json_object_filter_nulls([
+    #("chat_id", encode_int_or_string(params.chat_id)),
+    #("from_chat_id", encode_int_or_string(params.from_chat_id)),
+    #("message_id", json.int(params.message_id)),
+    #(
+      "disable_notification",
+      json.nullable(params.disable_notification, json.bool),
+    ),
+    #("message_thread_id", json.nullable(params.message_thread_id, json.int)),
+    #("protect_content", json.nullable(params.protect_content, json.bool)),
+  ])
+}
+
 // AnswerCallbackQueryParameters --------------------------------------------------------------------------------------
 // https://core.telegram.org/bots/api#answercallbackquery
 pub type AnswerCallbackQueryParameters {
