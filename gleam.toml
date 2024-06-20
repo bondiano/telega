@@ -7,7 +7,7 @@ links = [
     { title = "Issues", href = "https://github.com/bondiano/telega/issues" },
 ]
 
-gleam = "~> 1.1.0"
+gleam = "~> 1.2.0"
 target = "erlang"
 
 [dependencies]
