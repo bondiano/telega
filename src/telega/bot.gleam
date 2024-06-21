@@ -373,7 +373,8 @@ fn do_handle(
         True -> Some(handle(new_context(bot, update), update_command))
         False -> None
       }
-    HandleCommands(commands, handle), CommandUpdate(command: update_command, ..) -> {
+    HandleCommands(commands, handle), CommandUpdate(command: update_command, ..)
+    -> {
       case list.contains(commands, update_command.command) {
         True -> Some(handle(new_context(bot, update), update_command))
         False -> None
