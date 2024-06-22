@@ -12,6 +12,7 @@ import telega/api as telega_api
 import telega/bot.{type Context}
 import telega/keyboard as telega_keyboard
 import telega/model.{EditMessageTextParameters, Stringed} as telega_model
+import telega/reply
 import wisp.{type Response}
 
 type BotContext =
@@ -66,7 +67,7 @@ fn change_languages_keyboard(
 
   let language = ctx.session.lang
   let keyboard = language_keyboard.new_keyboard(language)
-  use _ <- result.try(telega_api.reply_with_markup(
+  use _ <- result.try(reply.with_markup(
     ctx,
     t_change_language_message(language),
     telega_keyboard.build(keyboard),
@@ -74,10 +75,7 @@ fn change_languages_keyboard(
 
   use _, text <- telega.wait_hears(ctx, telega_keyboard.hear(keyboard))
   let language = language_keyboard.option_to_language(text)
-  use _ <- result.try(telega_api.reply(
-    ctx,
-    t_language_changed_message(language),
-  ))
+  use _ <- result.try(reply.with_text(ctx, t_language_changed_message(language)))
   Ok(LanguageBotSession(language))
 }
 
@@ -90,7 +88,7 @@ fn handle_inline_change_language(
   let language = ctx.session.lang
   let callback_data = language_keyboard.build_keyboard_callback_data()
   let keyboard = language_keyboard.new_inline_keyboard(language, callback_data)
-  use message <- result.try(telega_api.reply_with_markup(
+  use message <- result.try(reply.with_markup(
     ctx,
     t_change_language_message(language),
     telega_keyboard.build_inline(keyboard),
@@ -106,12 +104,12 @@ fn handle_inline_change_language(
 
   let language = language_callback.data
 
-  use _ <- result.try(telega_api.answer_callback_query(
+  use _ <- result.try(reply.answer_callback_query(
     ctx,
     telega_model.new_answer_callback_query_parameters(callback_query_id),
   ))
 
-  use _ <- result.try(telega_api.edit_message_text(
+  use _ <- result.try(reply.edit_message_text(
     ctx,
     EditMessageTextParameters(
       ..telega_model.default_edit_message_text_parameters(),
@@ -131,7 +129,7 @@ fn start_command_handler(
   use <- telega.log_context(ctx, "start")
 
   telega_api.set_my_commands(
-    ctx.config,
+    ctx.config.api,
     telega_model.bot_commands_from([
       #("/lang", "Shows custom keyboard with languages"),
       #("/lang_inline", "Change language inline"),
@@ -139,7 +137,7 @@ fn start_command_handler(
     None,
   )
   |> result.then(fn(_) {
-    telega_api.reply(ctx, t_welcome_message(ctx.session.lang))
+    reply.with_text(ctx, t_welcome_message(ctx.session.lang))
     |> result.map(fn(_) { ctx.session })
   })
 }

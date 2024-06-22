@@ -9,6 +9,7 @@ import telega/adapters/wisp as telega_wisp
 import telega/api as telega_api
 import telega/bot.{type Context}
 import telega/model as telega_model
+import telega/reply
 import wisp.{type Request, type Response}
 
 type Bot =
@@ -42,7 +43,7 @@ fn handle_request(bot: Bot, req: Request) -> Response {
 fn dice_command_handler(ctx: NilContext, _) -> Result(Nil, String) {
   use <- telega.log_context(ctx, "dice")
 
-  telega_api.send_dice(ctx, None)
+  reply.with_dice(ctx, None)
   |> result.map(fn(_) { Nil })
 }
 
@@ -50,12 +51,12 @@ fn start_command_handler(ctx: NilContext, _) -> Result(Nil, String) {
   use <- telega.log_context(ctx, "start")
 
   telega_api.set_my_commands(
-    ctx.config,
+    ctx.config.api,
     telega_model.bot_commands_from([#("/dice", "Roll a dice")]),
     None,
   )
   |> result.then(fn(_) {
-    telega_api.reply(
+    reply.with_text(
       ctx,
       "Hello! I'm a dice bot. You can roll a dice by sending /dice command.",
     )

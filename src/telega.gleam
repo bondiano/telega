@@ -5,14 +5,13 @@ import gleam/otp/actor
 import gleam/otp/supervisor
 import gleam/result
 import gleam/string
-import telega/api
 import telega/bot.{
   type CallbackQueryFilter, type Context, type Handler, type Hears,
   type RegistryMessage, type SessionSettings, CallbackQueryFilter, Context,
   HandleAll, HandleBotRegistryMessage, HandleCallbackQuery, HandleCommand,
   HandleCommands, HandleHears, HandleText, SessionSettings,
 }
-import telega/config.{type Config}
+import telega/internal/config.{type Config}
 import telega/log
 import telega/update.{type Command, type Update}
 
@@ -33,14 +32,14 @@ pub opaque type TelegaBuilder(session) {
 ///
 /// Usefull if you plan to implement own adapter.
 pub fn is_webhook_path(telega: Telega(session), path: String) -> Bool {
-  config.get_webhook_path(telega.config) == path
+  telega.config.webhook_path == path
 }
 
 /// Check if a secret token is valid.
 ///
 /// Usefull if you plan to implement own adapter.
 pub fn is_secret_token_valid(telega: Telega(session), token: String) -> Bool {
-  config.get_secret_token(telega.config) == token
+  telega.config.secret_token == token
 }
 
 /// Create a new Telega instance.
@@ -261,7 +260,7 @@ pub fn init_nil_session(
 /// It will set the webhook and start the `Registry`.
 pub fn init(builder: TelegaBuilder(session)) -> Result(Telega(session), String) {
   let TelegaBuilder(telega) = builder
-  use is_ok <- result.try(api.set_webhook(telega.config))
+  use is_ok <- result.try(bot.set_webhook(telega.config))
   use <- bool.guard(!is_ok, Error("Failed to set webhook"))
 
   let session_settings =

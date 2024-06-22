@@ -1,3 +1,7 @@
+//// This module provides an interface for interacting with the Telegram Bot API.
+//// It will be useful if you want to interact with the Telegram Bot API directly, without running a bot.
+//// But it will be more convenient to use the `reply` module in bot handlers.
+
 import gleam/dynamic.{type DecodeError, type Dynamic}
 import gleam/erlang/process
 import gleam/http.{Get, Post}
@@ -8,18 +12,35 @@ import gleam/json
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import telega/bot.{type Context}
-import telega/config.{type Config}
 import telega/log
 import telega/model.{
   type AnswerCallbackQueryParameters, type BotCommand, type BotCommandParameters,
   type EditMessageTextParameters, type EditMessageTextResult,
-  type ForwardMessageParameters, type Message as ModelMessage, type ReplyMarkup,
+  type ForwardMessageParameters, type Message as ModelMessage,
   type SendDiceParameters, type SendMessageParameters, type User,
   type WebhookInfo,
 }
 
 const default_retry_delay = 1000
+
+pub type TelegramApiConfig {
+  TelegramApiConfig(
+    token: String,
+    /// The maximum number of times to retry sending a API message. Default is 3.
+    max_retry_attempts: Int,
+    /// The Telegram Bot API URL. Default is "https://api.telegram.org".
+    /// This is useful for running [a local server](https://core.telegram.org/bots/api#using-a-local-bot-api-server).
+    tg_api_url: String,
+  )
+}
+
+pub fn new_api_config(token token: String) -> TelegramApiConfig {
+  TelegramApiConfig(
+    token,
+    max_retry_attempts: 3,
+    tg_api_url: "https://api.telegram.org",
+  )
+}
 
 type TelegramApiRequest {
   TelegramApiPostRequest(
@@ -38,13 +59,12 @@ type ApiResponse(result) {
 /// Set the webhook URL using [setWebhook](https://core.telegram.org/bots/api#setwebhook) API.
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#setwebhook
-pub fn set_webhook(config config: Config) -> Result(Bool, String) {
-  let webhook_url =
-    config.get_server_url(config) <> "/" <> config.get_webhook_path(config)
-  let query = [
-    #("url", webhook_url),
-    #("secret_token", config.get_secret_token(config)),
-  ]
+pub fn set_webhook(
+  config config: TelegramApiConfig,
+  webhook_path webhook_path: String,
+) -> Result(Bool, String) {
+  let webhook_url = config.tg_api_url <> "/" <> webhook_path
+  let query = [#("url", webhook_url), #("secret_token", config.token)]
 
   new_get_request(config, path: "setWebhook", query: Some(query))
   |> fetch(config)
@@ -54,7 +74,9 @@ pub fn set_webhook(config config: Config) -> Result(Bool, String) {
 /// Use this method to get current webhook status.
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#getwebhookinfo
-pub fn get_webhook_info(config config: Config) -> Result(WebhookInfo, String) {
+pub fn get_webhook_info(
+  config config: TelegramApiConfig,
+) -> Result(WebhookInfo, String) {
   new_get_request(config, path: "getWebhookInfo", query: None)
   |> fetch(config)
   |> map_resonse(model.decode_webhook_info)
@@ -63,7 +85,7 @@ pub fn get_webhook_info(config config: Config) -> Result(WebhookInfo, String) {
 /// Use this method to remove webhook integration if you decide to switch back to [getUpdates](https://core.telegram.org/bots/api#getupdates).
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#deletewebhook
-pub fn delete_webhook(config config: Config) -> Result(Bool, String) {
+pub fn delete_webhook(config config: TelegramApiConfig) -> Result(Bool, String) {
   new_get_request(config, path: "deleteWebhook", query: None)
   |> fetch(config)
   |> map_resonse(dynamic.bool)
@@ -71,7 +93,7 @@ pub fn delete_webhook(config config: Config) -> Result(Bool, String) {
 
 /// The same as [delete_webhook](#delete_webhook) but also drops all pending updates.
 pub fn delete_webhook_and_drop_updates(
-  config config: Config,
+  config config: TelegramApiConfig,
 ) -> Result(Bool, String) {
   new_get_request(
     config,
@@ -87,7 +109,7 @@ pub fn delete_webhook_and_drop_updates(
 /// After a successful call, you can immediately log in on a local server, but will not be able to log in back to the cloud Bot API server for 10 minutes.
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#logout
-pub fn log_out(config config: Config) -> Result(Bool, String) {
+pub fn log_out(config config: TelegramApiConfig) -> Result(Bool, String) {
   new_get_request(config, path: "logOut", query: None)
   |> fetch(config)
   |> map_resonse(dynamic.bool)
@@ -98,51 +120,17 @@ pub fn log_out(config config: Config) -> Result(Bool, String) {
 /// The method will return error 429 in the first 10 minutes after the bot is launched.
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#close
-pub fn close(config config: Config) -> Result(Bool, String) {
+pub fn close(config config: TelegramApiConfig) -> Result(Bool, String) {
   new_get_request(config, path: "close", query: None)
   |> fetch(config)
   |> map_resonse(dynamic.bool)
 }
 
-/// Use this method to send text messages.
-///
-/// **Official reference:** https://core.telegram.org/bots/api#sendmessage
-pub fn reply(
-  ctx ctx: Context(session),
-  text text: String,
-) -> Result(ModelMessage, String) {
-  reply_with_parameters(
-    ctx.config,
-    parameters: model.new_send_message_parameters(
-      text: text,
-      chat_id: model.Stringed(ctx.key),
-    ),
-  )
-}
-
-/// Use this method to send text messages with keyboard markup.
-///
-/// **Official reference:** https://core.telegram.org/bots/api#sendmessage
-pub fn reply_with_markup(
-  ctx ctx: Context(session),
-  text text: String,
-  markup reply_markup: ReplyMarkup,
-) {
-  reply_with_parameters(
-    ctx.config,
-    parameters: model.new_send_message_parameters(
-      text: text,
-      chat_id: model.Stringed(ctx.key),
-    )
-      |> model.set_send_message_parameters_reply_markup(reply_markup),
-  )
-}
-
 /// Use this method to send text messages with additional parameters.
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#sendmessage
-pub fn reply_with_parameters(
-  config config: Config,
+pub fn send_message(
+  config config: TelegramApiConfig,
   parameters parameters: SendMessageParameters,
 ) -> Result(ModelMessage, String) {
   let body_json = model.encode_send_message_parameters(parameters)
@@ -161,7 +149,7 @@ pub fn reply_with_parameters(
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#setmycommands
 pub fn set_my_commands(
-  config config: Config,
+  config config: TelegramApiConfig,
   commands commands: List(BotCommand),
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(Bool, String) {
@@ -198,7 +186,7 @@ pub fn set_my_commands(
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#deletemycommands
 pub fn delete_my_commands(
-  config config: Config,
+  config config: TelegramApiConfig,
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(Bool, String) {
   let parameters =
@@ -221,7 +209,7 @@ pub fn delete_my_commands(
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#getmycommands
 pub fn get_my_commands(
-  config config: Config,
+  config config: TelegramApiConfig,
   parameters parameters: Option(BotCommandParameters),
 ) -> Result(List(BotCommand), String) {
   let parameters =
@@ -244,32 +232,27 @@ pub fn get_my_commands(
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#senddice
 pub fn send_dice(
-  ctx ctx: Context(session),
-  parameters parameters: Option(SendDiceParameters),
+  config config: TelegramApiConfig,
+  parameters parameters: SendDiceParameters,
 ) -> Result(ModelMessage, String) {
-  let body_json =
-    parameters
-    |> option.lazy_unwrap(fn() {
-      model.new_send_dice_parameters(model.Stringed(ctx.key))
-    })
-    |> model.encode_send_dice_parameters
+  let body_json = model.encode_send_dice_parameters(parameters)
 
   new_post_request(
-    config: ctx.config,
+    config: config,
     path: "sendDice",
     query: None,
     body: json.to_string(body_json),
   )
-  |> fetch(ctx.config)
+  |> fetch(config)
   |> map_resonse(model.decode_message)
 }
 
 /// A simple method for testing your bot's authentication token.
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#getme
-pub fn get_me(ctx ctx: Context(session)) -> Result(User, String) {
-  new_get_request(ctx.config, path: "getMe", query: None)
-  |> fetch(ctx.config)
+pub fn get_me(config config: TelegramApiConfig) -> Result(User, String) {
+  new_get_request(config, path: "getMe", query: None)
+  |> fetch(config)
   |> map_resonse(model.decode_user)
 }
 
@@ -279,18 +262,18 @@ pub fn get_me(ctx ctx: Context(session)) -> Result(User, String) {
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#answercallbackquery
 pub fn answer_callback_query(
-  ctx ctx: Context(session),
+  config config: TelegramApiConfig,
   parameters parameters: AnswerCallbackQueryParameters,
 ) -> Result(Bool, String) {
   let body_json = model.encode_answer_callback_query_parameters(parameters)
 
   new_post_request(
-    config: ctx.config,
+    config: config,
     path: "answerCallbackQuery",
     query: None,
     body: json.to_string(body_json),
   )
-  |> fetch(ctx.config)
+  |> fetch(config)
   |> map_resonse(dynamic.bool)
 }
 
@@ -299,18 +282,18 @@ pub fn answer_callback_query(
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#editmessagetext
 pub fn edit_message_text(
-  ctx ctx: Context(session),
+  config config: TelegramApiConfig,
   parameters parameters: EditMessageTextParameters,
 ) -> Result(EditMessageTextResult, String) {
   let body_json = model.encode_edit_message_text_parameters(parameters)
 
   new_post_request(
-    config: ctx.config,
+    config: config,
     path: "editMessageText",
     query: None,
     body: json.to_string(body_json),
   )
-  |> fetch(ctx.config)
+  |> fetch(config)
   |> map_resonse(model.decode_edit_message_text_result)
 }
 
@@ -319,30 +302,27 @@ pub fn edit_message_text(
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#forwardmessage
 pub fn forward_message(
-  ctx ctx: Context(session),
+  config config: TelegramApiConfig,
   parameters parameters: ForwardMessageParameters,
 ) -> Result(ModelMessage, String) {
   let body_json = model.encode_forward_message_parameters(parameters)
 
   new_post_request(
-    config: ctx.config,
+    config: config,
     path: "forwardMessage",
     query: None,
     body: json.to_string(body_json),
   )
-  |> fetch(ctx.config)
+  |> fetch(config)
   |> map_resonse(model.decode_message)
 }
 
-fn build_url(configuration: Config, path: String) -> String {
-  config.get_tg_api_url(configuration)
-  <> config.get_token(configuration)
-  <> "/"
-  <> path
+fn build_url(config: TelegramApiConfig, path: String) -> String {
+  config.tg_api_url <> config.token <> "/" <> path
 }
 
 fn new_post_request(
-  config config: Config,
+  config config: TelegramApiConfig,
   path path: String,
   body body: String,
   query query: Option(List(#(String, String))),
@@ -351,7 +331,7 @@ fn new_post_request(
 }
 
 fn new_get_request(
-  config config: Config,
+  config config: TelegramApiConfig,
   path path: String,
   query query: Option(List(#(String, String))),
 ) {
@@ -388,22 +368,6 @@ fn api_to_request(
     }
   }
   |> result.replace_error("Failed to convert API request to HTTP request")
-}
-
-fn fetch(
-  api_request: TelegramApiRequest,
-  configuration: Config,
-) -> Result(Response(String), String) {
-  use api_request <- result.try(api_to_request(api_request))
-  let retry_count = config.get_max_retry_attempts(configuration)
-
-  send_with_retry(api_request, retry_count)
-  |> result.map_error(fn(error) {
-    log.info("Api request failed with error:" <> string.inspect(error))
-
-    dynamic.string(error)
-    |> result.unwrap("Failed to send request")
-  })
 }
 
 fn send_with_retry(
@@ -456,4 +420,20 @@ fn response_decoder(result_decoder: fn(Dynamic) -> Result(a, List(DecodeError)))
     dynamic.field("ok", dynamic.bool),
     dynamic.field("result", result_decoder),
   )
+}
+
+// TODO: add rate limit handling
+fn fetch(
+  api_request: TelegramApiRequest,
+  config: TelegramApiConfig,
+) -> Result(Response(String), String) {
+  use api_request <- result.try(api_to_request(api_request))
+
+  send_with_retry(api_request, config.max_retry_attempts)
+  |> result.map_error(fn(error) {
+    log.info("Api request failed with error:" <> string.inspect(error))
+
+    dynamic.string(error)
+    |> result.unwrap("Failed to send request")
+  })
 }

@@ -1,11 +1,11 @@
-# telega
+# Telega
 
 [![Package Version](https://img.shields.io/hexpm/v/telega)](https://hex.pm/packages/telega)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/telega/)
 
 A [Gleam](https://gleam.run/) library for the Telegram Bot API.
 
-## It provides:
+## It provides
 
 - an interface to the Telegram Bot HTTP-based APIs `telega/api`
 - adapter to use with [wisp](https://github.com/gleam-wisp/wisp)
@@ -35,7 +35,7 @@ import gleam/result
 import mist
 import telega
 import telega/adapters/wisp as telega_wisp
-import telega/api as telega_api
+import telega/reply
 import telega/update.{CommandUpdate, TextUpdate}
 import wisp
 
@@ -48,8 +48,8 @@ fn echo_handler(ctx) {
   use <- telega.log_context(ctx, "echo")
 
   case ctx.update {
-    TextUpdate(text: text, ..) -> telega_api.reply(ctx, text)
-    CommandUpdate(command: command, ..) -> telega_api.reply(ctx, command.text)
+    TextUpdate(text: text, ..) -> reply.with_text(ctx, text)
+    CommandUpdate(command: command, ..) -> reply.with_text(ctx, command.text)
     _ -> Error("No text message")
   }
   |> result.map(fn(_) { Nil })

@@ -9,77 +9,15 @@ import gleam/otp/supervisor
 import gleam/regex.{type Regex}
 import gleam/result
 import gleam/string
-import telega/config.{type Config}
+import telega/api
+import telega/internal/config.{type Config}
 import telega/log
 import telega/update.{
   type Command, type Update, CallbackQueryUpdate, CommandUpdate, TextUpdate,
   UnknownUpdate,
 }
 
-pub type Handler(session) {
-  /// Handle all messages.
-  HandleAll(handler: fn(Context(session)) -> Result(session, String))
-  /// Handle a specific command.
-  HandleCommand(
-    command: String,
-    handler: fn(Context(session), Command) -> Result(session, String),
-  )
-  /// Handle multiple commands.
-  HandleCommands(
-    commands: List(String),
-    handler: fn(Context(session), Command) -> Result(session, String),
-  )
-  /// Handle text messages.
-  HandleText(handler: fn(Context(session), String) -> Result(session, String))
-  /// Handle text message with a specific substring.
-  HandleHears(
-    hears: Hears,
-    handler: fn(Context(session), String) -> Result(session, String),
-  )
-  /// Handle callback query. Context, data from callback query and `callback_query_id` are passed to the handler.
-  HandleCallbackQuery(
-    filter: CallbackQueryFilter,
-    handler: fn(Context(session), String, String) -> Result(session, String),
-  )
-}
-
-pub type SessionSettings(session) {
-  SessionSettings(
-    // Calls after all handlers to persist the session.
-    persist_session: fn(String, session) -> Result(session, String),
-    // Calls on initialization of the bot instanse to get the session.
-    get_session: fn(String) -> Result(session, String),
-  )
-}
-
-pub type Hears {
-  HearText(text: String)
-  HearTexts(texts: List(String))
-  HearRegex(regex: Regex)
-  HearRegexes(regexes: List(Regex))
-}
-
-pub type CallbackQueryFilter {
-  CallbackQueryFilter(re: Regex)
-}
-
-/// Handlers context.
-pub type Context(session) {
-  Context(
-    key: String,
-    update: Update,
-    config: Config,
-    session: session,
-    bot_subject: Subject(BotInstanseMessage(session)),
-  )
-}
-
-type RegistryItem(session) {
-  RegistryItem(
-    bot_subject: Subject(BotInstanseMessage(session)),
-    parent_subject: Subject(Subject(BotInstanseMessage(session))),
-  )
-}
+// Registry --------------------------------------------------------------------
 
 type Registry(session) {
   /// Registry works as routing for chat_id to bot instance.
@@ -92,75 +30,15 @@ type Registry(session) {
   )
 }
 
+type RegistryItem(session) {
+  RegistryItem(
+    bot_subject: Subject(BotInstanseMessage(session)),
+    parent_subject: Subject(Subject(BotInstanseMessage(session))),
+  )
+}
+
 pub type RegistryMessage {
   HandleBotRegistryMessage(update: Update)
-}
-
-pub type BotInstanseMessage(session) {
-  BotInstanseMessageOk
-  BotInstanseMessageNew(
-    client: Subject(BotInstanseMessage(session)),
-    update: Update,
-  )
-  BotInstanseMessageWaitHandler(handler: Handler(session))
-}
-
-type BotInstanse(session) {
-  BotInstanse(
-    key: String,
-    session: session,
-    config: Config,
-    handlers: List(Handler(session)),
-    session_settings: SessionSettings(session),
-    active_handler: Option(Handler(session)),
-    own_subject: Subject(BotInstanseMessage(session)),
-  )
-}
-
-pub fn start_registry(
-  config: Config,
-  handlers: List(Handler(session)),
-  session_settings: SessionSettings(session),
-  parent_subject: Subject(Subject(RegistryMessage)),
-) -> Result(Subject(RegistryMessage), actor.StartError) {
-  actor.start_spec(actor.Spec(
-    init: fn() {
-      let registry_subject = process.new_subject()
-      process.send(parent_subject, registry_subject)
-
-      let selector =
-        process.new_selector()
-        |> process.selecting(registry_subject, function.identity)
-
-      Registry(
-        bots: dict.new(),
-        config: config,
-        session_settings: session_settings,
-        handlers: handlers,
-      )
-      |> actor.Ready(selector)
-    },
-    loop: handle_registry_message,
-    init_timeout: 10_000,
-  ))
-}
-
-pub fn wait_handler(
-  ctx: Context(session),
-  handler: Handler(session),
-) -> Result(session, String) {
-  process.send(ctx.bot_subject, BotInstanseMessageWaitHandler(handler))
-  Ok(ctx.session)
-}
-
-fn new_context(bot: BotInstanse(session), update: Update) -> Context(session) {
-  Context(
-    update: update,
-    key: bot.key,
-    config: bot.config,
-    session: bot.session,
-    bot_subject: bot.own_subject,
-  )
 }
 
 fn try_send_update(registry_item: RegistryItem(session), update: Update) {
@@ -247,6 +125,68 @@ fn add_bot_instance(
   }
 }
 
+/// Set webhook for the bot.
+pub fn set_webhook(config config: Config) -> Result(Bool, String) {
+  api.set_webhook(config.api, config.webhook_path)
+}
+
+pub fn start_registry(
+  config: Config,
+  handlers: List(Handler(session)),
+  session_settings: SessionSettings(session),
+  parent_subject: Subject(Subject(RegistryMessage)),
+) -> Result(Subject(RegistryMessage), actor.StartError) {
+  actor.start_spec(actor.Spec(
+    init: fn() {
+      let registry_subject = process.new_subject()
+      process.send(parent_subject, registry_subject)
+
+      let selector =
+        process.new_selector()
+        |> process.selecting(registry_subject, function.identity)
+
+      Registry(
+        bots: dict.new(),
+        config: config,
+        session_settings: session_settings,
+        handlers: handlers,
+      )
+      |> actor.Ready(selector)
+    },
+    loop: handle_registry_message,
+    init_timeout: 10_000,
+  ))
+}
+
+pub fn wait_handler(
+  ctx: Context(session),
+  handler: Handler(session),
+) -> Result(session, String) {
+  process.send(ctx.bot_subject, BotInstanseMessageWaitHandler(handler))
+  Ok(ctx.session)
+}
+
+fn new_context(bot: BotInstanse(session), update: Update) -> Context(session) {
+  Context(
+    update: update,
+    key: bot.key,
+    config: bot.config,
+    session: bot.session,
+    bot_subject: bot.own_subject,
+  )
+}
+
+// Session ---------------------------------------------------------------------
+
+pub type SessionSettings(session) {
+  SessionSettings(
+    // Calls after all handlers to persist the session.
+    persist_session: fn(String, session) -> Result(session, String),
+    // Calls on initialization of the bot instanse to get the session.
+    get_session: fn(String) -> Result(session, String),
+  )
+}
+
 fn get_session_key(update: Update) -> Result(String, String) {
   case update {
     CommandUpdate(chat_id: chat_id, ..) -> Ok(int.to_string(chat_id))
@@ -301,6 +241,40 @@ fn start_bot_instanse(
   ))
 }
 
+// Bot Instanse --------------------------------------------------------------------
+
+/// Handlers context.
+pub type Context(session) {
+  Context(
+    key: String,
+    update: Update,
+    config: Config,
+    session: session,
+    bot_subject: Subject(BotInstanseMessage(session)),
+  )
+}
+
+pub type BotInstanseMessage(session) {
+  BotInstanseMessageOk
+  BotInstanseMessageNew(
+    client: Subject(BotInstanseMessage(session)),
+    update: Update,
+  )
+  BotInstanseMessageWaitHandler(handler: Handler(session))
+}
+
+type BotInstanse(session) {
+  BotInstanse(
+    key: String,
+    session: session,
+    config: Config,
+    handlers: List(Handler(session)),
+    session_settings: SessionSettings(session),
+    active_handler: Option(Handler(session)),
+    own_subject: Subject(BotInstanseMessage(session)),
+  )
+}
+
 fn handle_bot_instanse_message(
   message: BotInstanseMessage(session),
   bot: BotInstanse(session),
@@ -344,6 +318,15 @@ fn handle_bot_instanse_message(
   }
 }
 
+// Hears -----------------------------------------------------------------------
+
+pub type Hears {
+  HearText(text: String)
+  HearTexts(texts: List(String))
+  HearRegex(regex: Regex)
+  HearRegexes(regexes: List(Regex))
+}
+
 fn hears_check(text: String, hear: Hears) -> Bool {
   case hear {
     HearText(str) -> text == str
@@ -351,6 +334,37 @@ fn hears_check(text: String, hear: Hears) -> Bool {
     HearRegex(re) -> regex.check(re, text)
     HearRegexes(regexes) -> list.any(regexes, regex.check(_, text))
   }
+}
+
+pub type Handler(session) {
+  /// Handle all messages.
+  HandleAll(handler: fn(Context(session)) -> Result(session, String))
+  /// Handle a specific command.
+  HandleCommand(
+    command: String,
+    handler: fn(Context(session), Command) -> Result(session, String),
+  )
+  /// Handle multiple commands.
+  HandleCommands(
+    commands: List(String),
+    handler: fn(Context(session), Command) -> Result(session, String),
+  )
+  /// Handle text messages.
+  HandleText(handler: fn(Context(session), String) -> Result(session, String))
+  /// Handle text message with a specific substring.
+  HandleHears(
+    hears: Hears,
+    handler: fn(Context(session), String) -> Result(session, String),
+  )
+  /// Handle callback query. Context, data from callback query and `callback_query_id` are passed to the handler.
+  HandleCallbackQuery(
+    filter: CallbackQueryFilter,
+    handler: fn(Context(session), String, String) -> Result(session, String),
+  )
+}
+
+pub type CallbackQueryFilter {
+  CallbackQueryFilter(re: Regex)
 }
 
 fn do_handle(

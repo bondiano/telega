@@ -10,6 +10,7 @@ import telega/adapters/wisp as telega_wisp
 import telega/api as telega_api
 import telega/bot.{type Context}
 import telega/model as telega_model
+import telega/reply
 import wisp.{type Response}
 
 type BotContext =
@@ -38,9 +39,9 @@ fn set_name_command_handler(
   _,
 ) -> Result(NameBotSession, String) {
   use <- telega.log_context(ctx, "set_name command")
-  use _ <- result.try(telega_api.reply(ctx, "What's your name?"))
+  use _ <- result.try(reply.with_text(ctx, "What's your name?"))
   use ctx, name <- telega.wait_text(ctx)
-  use _ <- result.try(telega_api.reply(ctx, "Your name is: " <> name <> " set!"))
+  use _ <- result.try(reply.with_text(ctx, "Your name is: " <> name <> " set!"))
 
   Ok(NameBotSession(name: name))
 }
@@ -51,7 +52,7 @@ fn get_name_command_handler(
 ) -> Result(NameBotSession, String) {
   use <- telega.log_context(ctx, "get_name command")
 
-  telega_api.reply(ctx, "Your name is: " <> ctx.session.name)
+  reply.with_text(ctx, "Your name is: " <> ctx.session.name)
   |> result.map(fn(_) { ctx.session })
 }
 
@@ -59,7 +60,7 @@ fn start_command_handler(ctx, _) -> Result(NameBotSession, String) {
   use <- telega.log_context(ctx, "start")
 
   telega_api.set_my_commands(
-    ctx.config,
+    ctx.config.api,
     telega_model.bot_commands_from([
       #("/set_name", "Set name"),
       #("/get_name", "Get name"),
@@ -67,7 +68,7 @@ fn start_command_handler(ctx, _) -> Result(NameBotSession, String) {
     None,
   )
   |> result.then(fn(_) {
-    telega_api.reply(
+    reply.with_text(
       ctx,
       "Hello! I'm a Name bot. You can set your name with /set_name command.",
     )
