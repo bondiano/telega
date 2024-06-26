@@ -61,7 +61,7 @@ pub fn with_dice(
 /// On success, if the edited message is not an inline message, the edited Message is returned, otherwise True is returned.
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#editmessagetext
-pub fn edit_message_text(
+pub fn edit_text(
   ctx ctx: Context(session),
   parameters parameters: EditMessageTextParameters,
 ) -> Result(EditMessageTextResult, String) {
@@ -72,7 +72,7 @@ pub fn edit_message_text(
 /// On success, the sent Message is returned.
 ///
 /// **Official reference:** https://core.telegram.org/bots/api#forwardmessage
-pub fn forward_message(
+pub fn forward(
   ctx ctx: Context(session),
   parameters parameters: ForwardMessageParameters,
 ) -> Result(ModelMessage, String) {

@@ -42,7 +42,6 @@ pub fn main() {
     |> mist.new
     |> mist.port(8000)
     |> mist.start_http
-    |> result.nil_error
 
   process.sleep_forever()
 }

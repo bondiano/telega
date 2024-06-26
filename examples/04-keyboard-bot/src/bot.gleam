@@ -109,7 +109,7 @@ fn handle_inline_change_language(
     telega_model.new_answer_callback_query_parameters(callback_query_id),
   ))
 
-  use _ <- result.try(reply.edit_message_text(
+  use _ <- result.try(reply.edit_text(
     ctx,
     EditMessageTextParameters(
       ..telega_model.default_edit_message_text_parameters(),
