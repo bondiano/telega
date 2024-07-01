@@ -5,6 +5,7 @@ licences = ["Apache-2.0"]
 repository = { type = "github", user = "bondiano", repo = "telega" }
 links = [
     { title = "Issues", href = "https://github.com/bondiano/telega/issues" },
+    { title = "Examples", href = "https://github.com/bondiano/telega/tree/master/examples"}
 ]
 
 gleam = "~> 1.2.0"
