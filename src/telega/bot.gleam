@@ -12,12 +12,19 @@ import gleam/string
 import telega/api
 import telega/internal/config.{type Config}
 import telega/log
+import telega/model
 import telega/update.{
   type Command, type Update, CallbackQueryUpdate, CommandUpdate, TextUpdate,
   UnknownUpdate,
 }
 
 // Registry --------------------------------------------------------------------
+
+type RegestrySubject =
+  Subject(RegistryMessage)
+
+type RootBotInstanseSubject(session) =
+  Subject(Subject(BotInstanseMessage(session)))
 
 type Registry(session) {
   /// Registry works as routing for chat_id to bot instance.
@@ -27,26 +34,23 @@ type Registry(session) {
     config: Config,
     session_settings: SessionSettings(session),
     handlers: List(Handler(session)),
+    registry_subject: RegestrySubject,
+    bot_instances_subject: RootBotInstanseSubject(session),
   )
 }
 
-type RegistryItem(session) {
-  RegistryItem(
-    bot_subject: Subject(BotInstanseMessage(session)),
-    parent_subject: Subject(Subject(BotInstanseMessage(session))),
-  )
-}
+type BotInstanseSubject(session) =
+  Subject(BotInstanseMessage(session))
+
+type RegistryItem(session) =
+  BotInstanseSubject(session)
 
 pub type RegistryMessage {
   HandleBotRegistryMessage(update: Update)
 }
 
 fn try_send_update(registry_item: RegistryItem(session), update: Update) {
-  process.try_call(
-    registry_item.bot_subject,
-    BotInstanseMessageNew(_, update),
-    1000,
-  )
+  process.try_call(registry_item, BotInstanseMessageNew(_, update), 1000)
 }
 
 fn handle_registry_message(
@@ -79,14 +83,13 @@ fn add_bot_instance(
   session_key: String,
   update: Update,
 ) {
-  let parent_subject = process.new_subject()
   let registry_actor =
     supervisor.supervisor(fn(_) {
       start_bot_instanse(
         registry: registry,
         update: update,
         session_key: session_key,
-        parent_subject: parent_subject,
+        parent_subject: registry.bot_instances_subject,
       )
     })
 
@@ -94,20 +97,19 @@ fn add_bot_instance(
     supervisor.start(supervisor.add(_, registry_actor))
 
   let bot_subject_result =
-    process.receive(parent_subject, 1000)
+    process.receive(registry.bot_instances_subject, 1000)
     |> result.map_error(fn(e) {
       "Failed to start bot instanse:\n" <> string.inspect(e)
     })
 
   case bot_subject_result {
     Ok(bot_subject) -> {
-      let registry_item = RegistryItem(bot_subject, parent_subject)
-      case try_send_update(registry_item, update) {
+      case try_send_update(bot_subject, update) {
         Ok(_) ->
           actor.continue(
             Registry(
               ..registry,
-              bots: dict.insert(registry.bots, session_key, registry_item),
+              bots: dict.insert(registry.bots, session_key, bot_subject),
             ),
           )
         Error(e) -> {
@@ -127,19 +129,30 @@ fn add_bot_instance(
 
 /// Set webhook for the bot.
 pub fn set_webhook(config config: Config) -> Result(Bool, String) {
-  api.set_webhook(config.api, config.webhook_path)
+  api.set_webhook(
+    config.api,
+    model.SetWebhookParameters(
+      url: config.server_url <> "/" <> config.webhook_path,
+      max_connections: None,
+      ip_address: None,
+      allowed_updates: None,
+      drop_pending_updates: None,
+      secret_token: Some(config.secret_token),
+    ),
+  )
 }
 
 pub fn start_registry(
   config: Config,
   handlers: List(Handler(session)),
   session_settings: SessionSettings(session),
-  parent_subject: Subject(Subject(RegistryMessage)),
-) -> Result(Subject(RegistryMessage), actor.StartError) {
+  root_subject: Subject(RegestrySubject),
+) -> Result(RegestrySubject, actor.StartError) {
   actor.start_spec(actor.Spec(
     init: fn() {
       let registry_subject = process.new_subject()
-      process.send(parent_subject, registry_subject)
+      let bot_instances_subject = process.new_subject()
+      process.send(root_subject, registry_subject)
 
       let selector =
         process.new_selector()
@@ -150,6 +163,8 @@ pub fn start_registry(
         config: config,
         session_settings: session_settings,
         handlers: handlers,
+        registry_subject: registry_subject,
+        bot_instances_subject: bot_instances_subject,
       )
       |> actor.Ready(selector)
     },
@@ -211,8 +226,8 @@ fn start_bot_instanse(
   registry registry: Registry(session),
   update update: Update,
   session_key session_key: String,
-  parent_subject parent_subject: Subject(Subject(BotInstanseMessage(session))),
-) -> Result(Subject(BotInstanseMessage(session)), actor.StartError) {
+  parent_subject parent_subject: RootBotInstanseSubject(session),
+) -> Result(BotInstanseSubject(session), actor.StartError) {
   actor.start_spec(actor.Spec(
     init: fn() {
       let actor_subj = process.new_subject()
@@ -250,16 +265,13 @@ pub type Context(session) {
     update: Update,
     config: Config,
     session: session,
-    bot_subject: Subject(BotInstanseMessage(session)),
+    bot_subject: BotInstanseSubject(session),
   )
 }
 
 pub type BotInstanseMessage(session) {
   BotInstanseMessageOk
-  BotInstanseMessageNew(
-    client: Subject(BotInstanseMessage(session)),
-    update: Update,
-  )
+  BotInstanseMessageNew(client: BotInstanseSubject(session), update: Update)
   BotInstanseMessageWaitHandler(handler: Handler(session))
 }
 
@@ -271,7 +283,7 @@ type BotInstanse(session) {
     handlers: List(Handler(session)),
     session_settings: SessionSettings(session),
     active_handler: Option(Handler(session)),
-    own_subject: Subject(BotInstanseMessage(session)),
+    own_subject: BotInstanseSubject(session),
   )
 }
 
