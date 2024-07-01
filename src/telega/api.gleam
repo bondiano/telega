@@ -61,12 +61,16 @@ type ApiResponse(result) {
 /// **Official reference:** https://core.telegram.org/bots/api#setwebhook
 pub fn set_webhook(
   config config: TelegramApiConfig,
-  webhook_path webhook_path: String,
+  parameters parameters: model.SetWebhookParameters,
 ) -> Result(Bool, String) {
-  let webhook_url = config.tg_api_url <> "/" <> webhook_path
-  let query = [#("url", webhook_url), #("secret_token", config.token)]
+  let body = model.encode_set_webhook_parameters(parameters)
 
-  new_get_request(config, path: "setWebhook", query: Some(query))
+  new_post_request(
+    config,
+    path: "setWebhook",
+    body: json.to_string(body),
+    query: None,
+  )
   |> fetch(config)
   |> map_resonse(dynamic.bool)
 }
@@ -367,36 +371,9 @@ fn api_to_request(
       |> result.map(set_query(_, query))
     }
   }
-  |> result.replace_error("Failed to convert API request to HTTP request")
-}
-
-fn send_with_retry(
-  api_request: Request(String),
-  retries: Int,
-) -> Result(Response(String), Dynamic) {
-  let response = httpc.send(api_request)
-
-  case retries {
-    0 -> response
-    _ -> {
-      case response {
-        Ok(response) -> {
-          case response.status {
-            429 -> {
-              log.warn("Telegram API throttling, HTTP 429 'Too Many Requests'")
-              process.sleep(default_retry_delay)
-              send_with_retry(api_request, retries - 1)
-            }
-            _ -> Ok(response)
-          }
-        }
-        Error(_) -> {
-          process.sleep(default_retry_delay)
-          send_with_retry(api_request, retries - 1)
-        }
-      }
-    }
-  }
+  |> result.map_error(fn(error) {
+    "Failed to convert API request to HTTP request: " <> string.inspect(error)
+  })
 }
 
 fn map_resonse(
@@ -436,4 +413,35 @@ fn fetch(
     dynamic.string(error)
     |> result.unwrap("Failed to send request")
   })
+}
+
+fn send_with_retry(
+  api_request: Request(String),
+  retries: Int,
+) -> Result(Response(String), Dynamic) {
+  let response = httpc.send(api_request)
+
+  case retries {
+    0 -> response
+    _ -> {
+      case response {
+        Ok(response) -> {
+          case response.status {
+            429 -> {
+              log.warn("Telegram API throttling, HTTP 429 'Too Many Requests'")
+              // TODO: remake it with smart request balancer
+              // https://github.com/energizer91/smart-request-balancer/tree/master - for reference
+              process.sleep(default_retry_delay)
+              send_with_retry(api_request, retries - 1)
+            }
+            _ -> Ok(response)
+          }
+        }
+        Error(_) -> {
+          process.sleep(default_retry_delay)
+          send_with_retry(api_request, retries - 1)
+        }
+      }
+    }
+  }
 }

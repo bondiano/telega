@@ -2105,6 +2105,47 @@ pub fn encode_answer_callback_query_parameters(
   ])
 }
 
+// SetWebhookParameters ----------------------------------------------------------------------------------------------
+
+/// https://core.telegram.org/bots/api#setwebhook
+pub type SetWebhookParameters {
+  SetWebhookParameters(
+    /// HTTPS url to send updates to. Use an empty string to remove webhook integration
+    url: String,
+    // TODO: support certificate
+    // certificate: Option(InputFile),
+    /// Maximum allowed number of simultaneous HTTPS connections to the webhook for update delivery, 1-100. Defaults to 40. Use lower values to limit the load on your bot's server, and higher values to increase your bot's throughput.
+    max_connections: Option(Int),
+    /// The fixed IP address which will be used to send webhook requests instead of the IP address resolved through DNS
+    ip_address: Option(String),
+    /// A JSON-serialized list of the update types you want your bot to receive. For example, specify `["message", "edited_channel_post", "callback_query"]` to only receive updates of these types. See [Update](https://core.telegram.org/bots/api#update) for a complete list of available update types. Specify an empty list to receive all updates regardless of type (default). If not specified, the previous setting will be used.
+    ///
+    /// > Please note that this parameter doesn't affect updates created before the call to the setWebhook, so unwanted updates may be received for a short period of time.
+    allowed_updates: Option(List(String)),
+    /// Pass _True_ to drop all pending updates
+    drop_pending_updates: Option(Bool),
+    /// A secret token to be sent in a header “X-Telegram-Bot-Api-Secret-Token” in every webhook request, 1-256 characters. Only characters A-Z, a-z, 0-9, _ and - are allowed. The header is useful to ensure that the request comes from a webhook set by you.
+    secret_token: Option(String),
+  )
+}
+
+pub fn encode_set_webhook_parameters(params: SetWebhookParameters) -> Json {
+  json_object_filter_nulls([
+    #("url", json.string(params.url)),
+    #("max_connections", json.nullable(params.max_connections, json.int)),
+    #("ip_address", json.nullable(params.ip_address, json.string)),
+    #(
+      "allowed_updates",
+      json.nullable(params.allowed_updates, json.array(_, json.string)),
+    ),
+    #(
+      "drop_pending_updates",
+      json.nullable(params.drop_pending_updates, json.bool),
+    ),
+    #("secret_token", json.nullable(params.secret_token, json.string)),
+  ])
+}
+
 // Common ------------------------------------------------------------------------------------------------------------
 
 pub type IntOrString {
