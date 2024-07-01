@@ -4,7 +4,7 @@ import gleam/option.{None}
 import gleeunit
 import gleeunit/should
 import mockth
-import telega/api
+import telega/bot
 import telega/internal/config
 
 pub fn main() {
@@ -30,7 +30,7 @@ fn with_mocked_httpc(resp: Response(String), wrapped: fn() -> Nil) {
 pub fn set_webhook_test() {
   use <- with_mocked_httpc(Response(200, [], "{\"ok\": true, \"result\": true}"))
 
-  create_new_config().api
-  |> api.set_webhook("/test")
+  create_new_config()
+  |> bot.set_webhook()
   |> should.equal(Ok(True))
 }
