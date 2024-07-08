@@ -946,9 +946,9 @@ pub type KeyboardButton {
   KeyboardButton(
     /// Text of the button. If none of the optional fields are used, it will be sent as a message when the button is pressed
     text: String,
-    /// If specified, pressing the button will open a list of suitable users. Identifiers of selected users will be sent to the bot in a “users_shared” service message. Available in private chats only.
+    /// If specified, pressing the button will open a list of suitable users. Identifiers of selected users will be sent to the bot in a "users_shared" service message. Available in private chats only.
     request_users: Option(KeyboardButtonRequestUsers),
-    /// If specified, pressing the button will open a list of suitable chats. Tapping on a chat will send its identifier to the bot in a “chat_shared” service message. Available in private chats only.
+    /// If specified, pressing the button will open a list of suitable chats. Tapping on a chat will send its identifier to the bot in a "chat_shared" service message. Available in private chats only.
     request_chat: Option(KeyboardButtonRequestChat),
     /// If _True_, the user's phone number will be sent as a contact when the button is pressed. Available in private chats only.
     request_contact: Option(Bool),
@@ -956,7 +956,7 @@ pub type KeyboardButton {
     request_location: Option(Bool),
     /// If specified, the user will be asked to create a poll and send it to the bot when the button is pressed. Available in private chats only.
     request_poll: Option(KeyboardButtonPollType),
-    /// If specified, the described [Web App](https://core.telegram.org/bots/webapps) will be launched when the button is pressed. The Web App will be able to send a “web_app_data” service message. Available in private chats only.
+    /// If specified, the described [Web App](https://core.telegram.org/bots/webapps) will be launched when the button is pressed. The Web App will be able to send a "web_app_data" service message. Available in private chats only.
     web_app: Option(WebAppInfo),
   )
 }
@@ -2124,7 +2124,7 @@ pub type SetWebhookParameters {
     allowed_updates: Option(List(String)),
     /// Pass _True_ to drop all pending updates
     drop_pending_updates: Option(Bool),
-    /// A secret token to be sent in a header “X-Telegram-Bot-Api-Secret-Token” in every webhook request, 1-256 characters. Only characters A-Z, a-z, 0-9, _ and - are allowed. The header is useful to ensure that the request comes from a webhook set by you.
+    /// A secret token to be sent in a header "X-Telegram-Bot-Api-Secret-Token" in every webhook request, 1-256 characters. Only characters A-Z, a-z, 0-9, _ and - are allowed. The header is useful to ensure that the request comes from a webhook set by you.
     secret_token: Option(String),
   )
 }

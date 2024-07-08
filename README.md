@@ -16,9 +16,9 @@ A [Gleam](https://gleam.run/) library for the Telegram Bot API.
 
 > If you are new to Telegram bots, read the official [Introduction for Developers](https://core.telegram.org/bots) written by the Telegram team.
 
-First, visit [@BotFather](https://t.me/botfather) and create a new bot. Copy **the token** and save it for later.
+First, visit [@BotFather](https://t.me/botfather) to create a new bot. Copy **the token** and save it for later.
 
-Init new gleam project and add `telega` and `wisp` as a dependency:
+Initiate a gleam project and add `telega` and `wisp` as a dependencies:
 
 ```sh
 $ gleam new first_tg_bot
@@ -78,7 +78,7 @@ pub fn main() {
 }
 ```
 
-Replace `"your bot token from @BotFather"` with the token you got from the BotFather. Set the `url` and `webhook_path` to your server URL and the path you want to use for the webhook. If you don't have a server yet, you can use [ngrok](https://ngrok.com/) or [localtunne](https://localtunnel.me/) to create a tunnel to your local machine.
+Replace `"your bot token from @BotFather"` with the token you received from the BotFather. Set the `url` and `webhook_path` to your server's URL and the desired path for the webhook. If you don't have a server yet, you can use [ngrok](https://ngrok.com/) or [localtunne](https://localtunnel.me/) to create a tunnel to your local machine.
 
 Then run the bot:
 
@@ -86,9 +86,9 @@ Then run the bot:
 $ gleam run
 ```
 
-and it will echo all received text messages.
+And it will echo all received text messages.
 
-Congrats! You just wrote a Telegram bot :)
+Congratulations! You just wrote a Telegram bot :)
 
 ## Examples
 

@@ -12,7 +12,7 @@ import gleam/string
 import telega/api
 import telega/internal/config.{type Config}
 import telega/log
-import telega/model
+import telega/model.{type User}
 import telega/update.{
   type Command, type Update, CallbackQueryUpdate, CommandUpdate, TextUpdate,
   UnknownUpdate,
@@ -32,6 +32,7 @@ type Registry(session) {
   Registry(
     bots: Dict(String, RegistryItem(session)),
     config: Config,
+    bot_info: User,
     session_settings: SessionSettings(session),
     handlers: List(Handler(session)),
     registry_subject: RegestrySubject,
@@ -143,10 +144,11 @@ pub fn set_webhook(config config: Config) -> Result(Bool, String) {
 }
 
 pub fn start_registry(
-  config: Config,
-  handlers: List(Handler(session)),
-  session_settings: SessionSettings(session),
-  root_subject: Subject(RegestrySubject),
+  config config: Config,
+  handlers handlers: List(Handler(session)),
+  session_settings session_settings: SessionSettings(session),
+  root_subject root_subject: Subject(RegestrySubject),
+  bot_info bot_info: User,
 ) -> Result(RegestrySubject, actor.StartError) {
   actor.start_spec(actor.Spec(
     init: fn() {
@@ -165,6 +167,7 @@ pub fn start_registry(
         handlers: handlers,
         registry_subject: registry_subject,
         bot_instances_subject: bot_instances_subject,
+        bot_info: bot_info,
       )
       |> actor.Ready(selector)
     },
@@ -188,6 +191,7 @@ fn new_context(bot: BotInstanse(session), update: Update) -> Context(session) {
     config: bot.config,
     session: bot.session,
     bot_subject: bot.own_subject,
+    bot_info: bot.bot_info,
   )
 }
 
@@ -241,6 +245,7 @@ fn start_bot_instanse(
           BotInstanse(
             key: session_key,
             session: session,
+            bot_info: registry.bot_info,
             config: registry.config,
             handlers: registry.handlers,
             session_settings: registry.session_settings,
@@ -263,6 +268,7 @@ pub type Context(session) {
   Context(
     key: String,
     update: Update,
+    bot_info: User,
     config: Config,
     session: session,
     bot_subject: BotInstanseSubject(session),
@@ -281,6 +287,7 @@ type BotInstanse(session) {
     session: session,
     config: Config,
     handlers: List(Handler(session)),
+    bot_info: User,
     session_settings: SessionSettings(session),
     active_handler: Option(Handler(session)),
     own_subject: BotInstanseSubject(session),
