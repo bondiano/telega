@@ -2146,6 +2146,36 @@ pub fn encode_set_webhook_parameters(params: SetWebhookParameters) -> Json {
   ])
 }
 
+// File --------------------------------------------------------------------------------------------------------------
+
+/// https://core.telegram.org/bots/api#file
+pub type File {
+  /// This object represents a file ready to be downloaded. The file can be downloaded via the link `https://api.telegram.org/file/bot<token>/<file_path>`. It is guaranteed that the link will be valid for at least 1 hour. When the link expires, a new one can be requested by calling [getFile](https://core.telegram.org/bots/api#getfile).
+  ///
+  /// **Official reference:** [File](https://core.telegram.org/bots/api#file)
+  File(
+    /// Unique identifier for this file
+    file_id: String,
+    /// _Optional_. Unique identifier for this file, which is supposed to be the same over time and for different bots. Can't be used to download or reuse the file
+    file_unique_id: Option(String),
+    /// _Optional_. File size, if known
+    file_size: Option(Int),
+    /// _Optional_. File path. Use `https://api.telegram.org/file/bot<token>/<file_path>` to get the file
+    file_path: Option(String),
+  )
+}
+
+pub fn decode_file(json: Dynamic) -> Result(File, dynamic.DecodeErrors) {
+  json
+  |> dynamic.decode4(
+    File,
+    dynamic.field("file_id", dynamic.string),
+    dynamic.optional_field("file_unique_id", dynamic.string),
+    dynamic.optional_field("file_size", dynamic.int),
+    dynamic.optional_field("file_path", dynamic.string),
+  )
+}
+
 // Common ------------------------------------------------------------------------------------------------------------
 
 pub type IntOrString {

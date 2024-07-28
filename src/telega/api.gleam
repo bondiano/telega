@@ -15,7 +15,7 @@ import gleam/string
 import telega/log
 import telega/model.{
   type AnswerCallbackQueryParameters, type BotCommand, type BotCommandParameters,
-  type EditMessageTextParameters, type EditMessageTextResult,
+  type EditMessageTextParameters, type EditMessageTextResult, type File,
   type ForwardMessageParameters, type Message as ModelMessage,
   type SendDiceParameters, type SendMessageParameters, type User,
   type WebhookInfo,
@@ -323,6 +323,15 @@ pub fn forward_message(
 
 fn build_url(config: TelegramApiConfig, path: String) -> String {
   config.tg_api_url <> config.token <> "/" <> path
+}
+
+pub fn get_file(
+  config config: TelegramApiConfig,
+  file_id file_id: String,
+) -> Result(File, String) {
+  new_get_request(config, path: "getFile", query: Some([#("file_id", file_id)]))
+  |> fetch(config)
+  |> map_resonse(model.decode_file)
 }
 
 fn new_post_request(

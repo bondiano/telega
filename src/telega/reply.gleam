@@ -1,4 +1,5 @@
 import gleam/option.{type Option}
+import gleam/result
 import telega/api
 import telega/bot.{type Context}
 import telega/model.{
@@ -89,4 +90,24 @@ pub fn answer_callback_query(
   parameters parameters: AnswerCallbackQueryParameters,
 ) -> Result(Bool, String) {
   api.answer_callback_query(ctx.config.api, parameters)
+}
+
+/// Get download link for the file.
+pub fn with_file_link(
+  ctx ctx: Context(session),
+  file_id file_id: String,
+) -> Result(String, String) {
+  use file <- result.try(api.get_file(ctx.config.api, file_id))
+  use file_path <- result.try(option.to_result(
+    file.file_path,
+    "File path is missing",
+  ))
+
+  Ok(
+    ctx.config.api.tg_api_url
+    <> "/file/bot"
+    <> ctx.config.secret_token
+    <> "/"
+    <> file_path,
+  )
 }
