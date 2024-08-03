@@ -32,9 +32,9 @@ pub fn new(
     })
 
   Config(
-    server_url: server_url,
-    webhook_path: webhook_path,
-    secret_token: secret_token,
+    server_url:,
+    webhook_path:,
+    secret_token:,
     api: TelegramApiConfig(
       token,
       max_retry_attempts: default_retry_count,

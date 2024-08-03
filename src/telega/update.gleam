@@ -71,7 +71,7 @@ fn try_to_decode_message_or_command(
                 raw: message,
               ))
             False ->
-              Ok(TextUpdate(chat_id: message.chat.id, text: text, raw: message))
+              Ok(TextUpdate(text:, chat_id: message.chat.id, raw: message))
           }
         }
         None -> on_none()
@@ -106,12 +106,12 @@ fn extract_command(text: String) -> Command {
   case string.split(text, " ") {
     [command, ..payload] ->
       Command(
-        text: text,
+        text:,
         command: string.drop_left(command, 1),
         payload: payload
           |> string.join(" ")
           |> Some,
       )
-    [] -> Command(text: text, command: "", payload: None)
+    [] -> Command(text:, command: "", payload: None)
   }
 }

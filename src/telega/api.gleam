@@ -242,7 +242,7 @@ pub fn send_dice(
   let body_json = model.encode_send_dice_parameters(parameters)
 
   new_post_request(
-    config: config,
+    config:,
     path: "sendDice",
     query: None,
     body: json.to_string(body_json),
@@ -272,7 +272,7 @@ pub fn answer_callback_query(
   let body_json = model.encode_answer_callback_query_parameters(parameters)
 
   new_post_request(
-    config: config,
+    config:,
     path: "answerCallbackQuery",
     query: None,
     body: json.to_string(body_json),
@@ -292,7 +292,7 @@ pub fn edit_message_text(
   let body_json = model.encode_edit_message_text_parameters(parameters)
 
   new_post_request(
-    config: config,
+    config:,
     path: "editMessageText",
     query: None,
     body: json.to_string(body_json),
@@ -312,7 +312,7 @@ pub fn forward_message(
   let body_json = model.encode_forward_message_parameters(parameters)
 
   new_post_request(
-    config: config,
+    config:,
     path: "forwardMessage",
     query: None,
     body: json.to_string(body_json),

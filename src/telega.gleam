@@ -59,12 +59,7 @@ pub fn new(
 ) -> TelegaBuilder(session) {
   TelegaBuilder(
     handlers: [],
-    config: config.new(
-      token: token,
-      url: server_url,
-      webhook_path: webhook_path,
-      secret_token: secret_token,
-    ),
+    config: config.new(token:, webhook_path:, secret_token:, url: server_url),
     registry_subject: None,
     session_settings: None,
   )
@@ -258,11 +253,11 @@ pub fn init(builder: TelegaBuilder(session)) -> Result(Telega(session), String) 
   let registry_actor =
     supervisor.supervisor(fn(_) {
       bot.start_registry(
+        bot_info:,
+        session_settings:,
         config: builder.config,
         handlers: builder.handlers,
-        session_settings: session_settings,
         root_subject: telega_subject,
-        bot_info: bot_info,
       )
     })
 
@@ -280,11 +275,11 @@ pub fn init(builder: TelegaBuilder(session)) -> Result(Telega(session), String) 
   )
 
   Ok(Telega(
+    bot_info:,
+    registry_subject:,
+    session_settings:,
     config: builder.config,
     handlers: builder.handlers,
-    bot_info: bot_info,
-    registry_subject: registry_subject,
-    session_settings: session_settings,
   ))
 }
 

@@ -161,13 +161,13 @@ pub fn start_registry(
         |> process.selecting(registry_subject, function.identity)
 
       Registry(
+        config:,
+        handlers:,
+        bot_info:,
+        session_settings:,
+        registry_subject:,
+        bot_instances_subject:,
         bots: dict.new(),
-        config: config,
-        session_settings: session_settings,
-        handlers: handlers,
-        registry_subject: registry_subject,
-        bot_instances_subject: bot_instances_subject,
-        bot_info: bot_info,
       )
       |> actor.Ready(selector)
     },
@@ -186,7 +186,7 @@ pub fn wait_handler(
 
 fn new_context(bot: BotInstanse(session), update: Update) -> Context(session) {
   Context(
-    update: update,
+    update:,
     key: bot.key,
     config: bot.config,
     session: bot.session,
@@ -243,8 +243,8 @@ fn start_bot_instanse(
       case get_session(registry.session_settings, update) {
         Ok(session) ->
           BotInstanse(
+            session:,
             key: session_key,
-            session: session,
             bot_info: registry.bot_info,
             config: registry.config,
             handlers: registry.handlers,

@@ -86,7 +86,7 @@ pub fn selected(keyboard: Keyboard) -> Keyboard {
 /// Create a new keyboard button
 pub fn button(text: String) -> KeyboardButton {
   KeyboardButton(
-    text: text,
+    text:,
     request_users: None,
     request_chat: None,
     request_contact: None,
@@ -118,7 +118,7 @@ pub fn inline_button(
   callback_data callback_data: KeyboardCallback(data),
 ) -> InlineKeyboardButton {
   InlineKeyboardButton(
-    text: text,
+    text:,
     callback_data: Some(callback_data.payload),
     url: None,
     login_url: None,
@@ -172,12 +172,7 @@ pub fn new_callback_data(
   serilize serilize: fn(data) -> String,
   deserialize deserialize: fn(String) -> data,
 ) {
-  KeyboardCallbackData(
-    id: id,
-    serilize: serilize,
-    deserialize: deserialize,
-    delimiter: ":",
-  )
+  KeyboardCallbackData(id:, serilize:, deserialize:, delimiter: ":")
 }
 
 /// Change the delimiter for the callback data, usefull if you need to use `:` in the id
@@ -196,12 +191,7 @@ pub fn pack_callback(
   let payload =
     callback_data.id <> callback_data.delimiter <> callback_data.serilize(data)
 
-  KeyboardCallback(
-    id: callback_data.id,
-    payload: payload,
-    data: data,
-    callback_data: callback_data,
-  )
+  KeyboardCallback(data:, payload:, callback_data:, id: callback_data.id)
 }
 
 /// Unpack payload into a callback
@@ -215,9 +205,9 @@ pub fn unpack_callback(
   ))
 
   Ok(KeyboardCallback(
-    id: id,
-    payload: payload,
+    id:,
+    payload:,
+    callback_data:,
     data: callback_data.deserialize(data),
-    callback_data: callback_data,
   ))
 }

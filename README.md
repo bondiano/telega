@@ -48,8 +48,8 @@ fn echo_handler(ctx) {
   use <- telega.log_context(ctx, "echo")
 
   case ctx.update {
-    TextUpdate(text: text, ..) -> reply.with_text(ctx, text)
-    CommandUpdate(command: command, ..) -> reply.with_text(ctx, command.text)
+    TextUpdate(text:, ..) -> reply.with_text(ctx, text)
+    CommandUpdate(command:, ..) -> reply.with_text(ctx, command.text)
     _ -> Error("No text message")
   }
   |> result.map(fn(_) { Nil })

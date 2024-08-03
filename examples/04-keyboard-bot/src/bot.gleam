@@ -143,17 +143,12 @@ fn start_command_handler(
 }
 
 fn build_bot() {
-  let assert Ok(bot_token) = os.get_env("BOT_TOKEN")
+  let assert Ok(token) = os.get_env("BOT_TOKEN")
   let assert Ok(webhook_path) = os.get_env("WEBHOOK_PATH")
-  let assert Ok(server_url) = os.get_env("SERVER_URL")
+  let assert Ok(url) = os.get_env("SERVER_URL")
   let assert Ok(secret_token) = os.get_env("BOT_SECRET_TOKEN")
 
-  telega.new(
-    token: bot_token,
-    url: server_url,
-    webhook_path: webhook_path,
-    secret_token: Some(secret_token),
-  )
+  telega.new(token:, url:, webhook_path:, secret_token: Some(secret_token))
   |> telega.handle_command("start", start_command_handler)
   |> telega.handle_command("lang", change_languages_keyboard)
   |> telega.handle_command("lang_inline", handle_inline_change_language)
