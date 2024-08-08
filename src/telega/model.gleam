@@ -1214,6 +1214,45 @@ pub fn encode_keyboard_button_poll_type(
   ])
 }
 
+// MenuButton --------------------------------------------------------------------------
+
+/// Describes the bot's menu button in a private chat.
+///
+/// **Official reference:** https://core.telegram.org/bots/api#menubutton
+pub type MenuButton {
+  /// Represents a menu button, which opens the bot's list of commands
+  MenuButtonCommands(
+    /// Type of the button, must be `commands`
+    button_type: String,
+  )
+  /// Represents a menu button, which launches a Web App.
+  MenuButtonWebApp(
+    /// Type of the button, must be `web_app`
+    button_type: String,
+    /// Information about the Web App
+    web_app: WebAppInfo,
+  )
+  /// Describes that no specific value for the menu button was set.
+  MenuButtonDefault(
+    /// Type of the button, must be `default`
+    button_type: String,
+  )
+}
+
+pub fn encode_menu_button(menu_button: MenuButton) -> Json {
+  case menu_button {
+    MenuButtonCommands(button_type) ->
+      json_object_filter_nulls([#("button_type", json.string(button_type))])
+    MenuButtonWebApp(button_type, web_app) ->
+      json_object_filter_nulls([
+        #("button_type", json.string(button_type)),
+        #("web_app", encode_web_app_info(web_app)),
+      ])
+    MenuButtonDefault(button_type) ->
+      json_object_filter_nulls([#("button_type", json.string(button_type))])
+  }
+}
+
 // ReplyParameters ---------------------------------------------------------------------
 
 pub type ReplyParameters {
@@ -2174,6 +2213,26 @@ pub fn decode_file(json: Dynamic) -> Result(File, dynamic.DecodeErrors) {
     dynamic.optional_field("file_size", dynamic.int),
     dynamic.optional_field("file_path", dynamic.string),
   )
+}
+
+// SetChatMenuButtonParameters ----------------------------------------------------------------------------------------
+
+pub type SetChatMenuButtonParameters {
+  SetChatMenuButtonParameters(
+    /// Unique identifier for the target private chat. If not specified, default bot's menu button will be changed
+    chat_id: Option(Int),
+    /// A JSON-serialized object for the bot's new menu button. Defaults to MenuButtonDefault
+    menu_button: Option(MenuButton),
+  )
+}
+
+pub fn encode_set_chat_menu_button_parametes(
+  params: SetChatMenuButtonParameters,
+) -> Json {
+  json_object_filter_nulls([
+    #("chat_id", json.nullable(params.chat_id, json.int)),
+    #("menu_button", json.nullable(params.menu_button, encode_menu_button)),
+  ])
 }
 
 // Common ------------------------------------------------------------------------------------------------------------

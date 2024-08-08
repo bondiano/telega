@@ -17,8 +17,8 @@ import telega/model.{
   type AnswerCallbackQueryParameters, type BotCommand, type BotCommandParameters,
   type EditMessageTextParameters, type EditMessageTextResult, type File,
   type ForwardMessageParameters, type Message as ModelMessage,
-  type SendDiceParameters, type SendMessageParameters, type User,
-  type WebhookInfo,
+  type SendDiceParameters, type SendMessageParameters,
+  type SetChatMenuButtonParameters, type User, type WebhookInfo,
 }
 
 const default_retry_delay = 1000
@@ -319,6 +319,24 @@ pub fn forward_message(
   )
   |> fetch(config)
   |> map_resonse(model.decode_message)
+}
+
+/// Use this method to change the bot's menu button in a private chat, or the default menu button. Returns True on success.
+///
+/// **Official reference:** https://core.telegram.org/bots/api#setchatmenubutton
+pub fn set_chat_menu_button(
+  config config: TelegramApiConfig,
+  parameters parameters: SetChatMenuButtonParameters,
+) -> Result(Bool, String) {
+  new_post_request(
+    config:,
+    path: "setChatMenuButton",
+    query: None,
+    body: model.encode_set_chat_menu_button_parametes(parameters)
+      |> json.to_string(),
+  )
+  |> fetch(config)
+  |> map_resonse(dynamic.bool)
 }
 
 fn build_url(config: TelegramApiConfig, path: String) -> String {
