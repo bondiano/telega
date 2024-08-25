@@ -10,7 +10,7 @@ import wisp.{
   Empty as WispEmptyBody,
 }
 
-const secret_header = "x-relegram-bot-api-secret-token"
+const secret_header = "X-Telegram-Bot-Api-Secret-Token"
 
 /// A middleware function to handle incoming requests from the Telegram API.
 /// Handles a request to the bot webhook endpoint, decodes the incoming message,
