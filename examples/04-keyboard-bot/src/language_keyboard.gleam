@@ -34,7 +34,7 @@ pub fn new_keyboard(lang: Language) {
   |> keyboard.one_time
 }
 
-pub fn option_to_language(option: String) -> Language {
+pub fn option_to_language(option: String) {
   case option {
     "🇷🇺 Russian" -> Russian
     "🇬🇧 Английский" -> English

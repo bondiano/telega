@@ -101,7 +101,6 @@ fn handle_inline_change_language(
 
   let assert Ok(language_callback) =
     telega_keyboard.unpack_callback(payload, callback_data)
-
   let language = language_callback.data
 
   use _ <- result.try(reply.answer_callback_query(

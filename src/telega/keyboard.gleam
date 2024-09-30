@@ -159,9 +159,9 @@ pub opaque type KeyboardCallbackData(data) {
 
 pub type KeyboardCallback(data) {
   KeyboardCallback(
+    data: data,
     id: String,
     payload: String,
-    data: data,
     callback_data: KeyboardCallbackData(data),
   )
 }
